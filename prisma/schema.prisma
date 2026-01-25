@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Puzzle {
+  id          String       @id @default(cuid())
+  idea        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  generations Generation[]
+}
+
+model Generation {
+  id          String   @id @default(cuid())
+  puzzleId    String
+  puzzle      Puzzle   @relation(fields: [puzzleId], references: [id])
+  
+  parentGenId String?
+  parentGen   Generation? @relation("History", fields: [parentGenId], references: [id])
+  children    Generation[] @relation("History")
+  
+  tokensUsed  Int      @default(0)
+  timeTakenMs Int      @default(0)
+  reasoning   String?  @db.Text
+  
+  pairs       Pair[]
+  
+  feedback    Feedback?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Pair {
+  id           String @id @default(cuid())
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id])
+  input        Json   
+  output       Json   
+  order        Int    
+}
+
+model Feedback {
+  id           String     @id @default(cuid())
+  generationId String     @unique
+  generation   Generation @relation(fields: [generationId], references: [id])
+  
+  text         String?    
+  gridEdits    Json?      
+  
+  createdAt    DateTime   @default(now())
+}
