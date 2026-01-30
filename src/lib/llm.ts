@@ -1,5 +1,11 @@
 export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'unknown';
 
+interface ProviderConfig {
+  url: string;
+  headers: Record<string, string>;
+  model: string;
+}
+
 export function detectProvider(apiKey: string): LLMProvider {
   if (apiKey.startsWith('sk-ant-')) return 'anthropic';
   if (apiKey.startsWith('sk-')) return 'openai';
@@ -39,7 +45,7 @@ export const PROVIDER_MODELS: Record<LLMProvider, string[]> = {
   unknown: [],
 };
 
-export function getProviderConfig(provider: LLMProvider, apiKey: string, model?: string) {
+export function getProviderConfig(provider: LLMProvider, apiKey: string, model?: string): ProviderConfig {
   const selectedModel = model || PROVIDER_MODELS[provider][0];
 
   switch (provider) {
@@ -120,7 +126,7 @@ export async function callLLM(provider: LLMProvider, apiKey: string, systemPromp
 
   const response = await fetch(config.url, {
     method: 'POST',
-    headers: config.headers as HeadersInit,
+    headers: config.headers,
     body: JSON.stringify(body),
   });
 
