@@ -120,7 +120,7 @@ export async function callLLM(provider: LLMProvider, apiKey: string, systemPromp
 
   const response = await fetch(config.url, {
     method: 'POST',
-    headers: config.headers,
+    headers: config.headers as HeadersInit,
     body: JSON.stringify(body),
   });
 
