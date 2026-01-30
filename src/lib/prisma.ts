@@ -9,7 +9,15 @@ const createPrismaClient = () => {
   if (!connectionString) {
     return new PrismaClient()
   }
-  const pool = new Pool({ connectionString })
+  
+  // Railway and mostly managed Postgres require SSL in production
+  const isProduction = process.env.NODE_ENV === 'production'
+  const pool = new Pool({ 
+    connectionString,
+    max: isProduction ? 10 : 1,
+    ssl: isProduction ? { rejectUnauthorized: false } : false
+  })
+  
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }
