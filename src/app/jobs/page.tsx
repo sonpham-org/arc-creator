@@ -8,11 +8,32 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Calculate runtime for pending/running jobs
+  const getRuntime = (createdAt: string) => {
+    const elapsed = currentTime - new Date(createdAt).getTime();
+    const seconds = Math.floor(elapsed / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
 
   useEffect(() => {
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000); // Auto-refresh every 5 seconds
-    return () => clearInterval(interval);
+    const timeInterval = setInterval(() => setCurrentTime(Date.now()), 1000); // Update time every second
+    return () => {
+      clearInterval(interval);
+      clearInterval(timeInterval);
+    };
   }, [filter]);
 
   const fetchJobs = async () => {
@@ -145,6 +166,9 @@ export default function JobsPage() {
                   <div className="flex flex-wrap gap-4 text-xs text-gray-500">
                     <span>Created: {new Date(job.createdAt).toLocaleString()}</span>
                     {job.model && <span>Model: {job.model}</span>}
+                    {(job.status === 'pending' || job.status === 'running') && (
+                      <span className="font-semibold text-blue-600">Runtime: {getRuntime(job.createdAt)}</span>
+                    )}
                     {job.tokensUsed && <span>Tokens: {job.tokensUsed.toLocaleString()}</span>}
                     {job.timeTakenMs && <span>Time: {(job.timeTakenMs / 1000).toFixed(1)}s</span>}
                   </div>

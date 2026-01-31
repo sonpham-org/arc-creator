@@ -16,7 +16,7 @@ export default function Navbar() {
     <nav className="border-b bg-white dark:bg-gray-950 px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div className="flex items-center gap-6">
         <Link href="/" className="font-bold text-xl tracking-tighter">
-          ARC Agent
+          ARC Creator
         </Link>
         <div className="flex items-center gap-4">
           <Link 
@@ -29,13 +29,13 @@ export default function Navbar() {
             href="/history" 
             className={`flex items-center gap-1 text-sm font-medium ${pathname === '/history' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
           >
-            <List size={16} /> History
+            <List size={16} /> Puzzles
           </Link>
           <Link 
             href="/jobs" 
             className={`flex items-center gap-1 text-sm font-medium ${pathname === '/jobs' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
           >
-            <Briefcase size={16} /> Jobs
+            <Briefcase size={16} /> Generation Jobs
           </Link>
         </div>
       </div>
