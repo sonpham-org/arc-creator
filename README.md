@@ -1,4 +1,4 @@
-# ARC Agent Creator
+# ARC Creator
 
 An AI-powered platform to design ARC (Abstraction and Reasoning Corpus) style challenge puzzles based on abstract concepts.
 
