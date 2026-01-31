@@ -8,6 +8,10 @@ This folder contains scripts for bulk puzzle generation and management.
 
 Generates multiple ARC puzzle concepts using Google Gemini and creates them on your server.
 
+### `import_arc_puzzles.py`
+
+Imports official ARC puzzles from the 2024/2025 datasets into the platform.
+
 #### Installation
 
 ```bash
@@ -139,3 +143,64 @@ Install dependencies:
 ```bash
 pip install google-generativeai requests
 ```
+
+---
+
+## Importing Official ARC Puzzles
+
+Use `import_arc_puzzles.py` to import official ARC datasets from 2024 and 2025.
+
+### Usage
+
+```bash
+# Set admin key
+export ADMIN_KEY="your_admin_secret_key"
+
+# Import ARC 2024 training set
+python import_arc_puzzles.py --source arc-2024-training
+
+# Import ARC 2025 evaluation set to production
+python import_arc_puzzles.py --source arc-2025-evaluation --server https://your-app.railway.app
+
+# Test with limited puzzles first
+python import_arc_puzzles.py --source arc-2024-training --limit 10
+```
+
+### Available Sources
+
+- `arc-2024-training` - 400 training puzzles
+- `arc-2024-evaluation` - 400 evaluation puzzles  
+- `arc-2024-test` - 100 test puzzles (no solutions)
+- `arc-2025-training` - Training puzzles from 2025
+- `arc-2025-evaluation` - Evaluation puzzles from 2025
+- `arc-2025-test` - Test puzzles from 2025
+
+### Features
+
+- ✅ Bulk import official ARC puzzles
+- ✅ Preserves original ARC puzzle IDs
+- ✅ Marks puzzles with source (e.g., "arc-2024-training")
+- ✅ Properly designates train/test pairs
+- ✅ Skips existing puzzles (safe to re-run)
+- ✅ Detailed import statistics
+
+### Parent-Child Tracking
+
+**Official ARC puzzles are marked as "OG" (original)** with:
+- `source` field set to dataset (e.g., `arc-2024-training`)
+- `parentGenId` set to `null` (no parent)
+- Original ARC ID preserved
+
+When you create refinements via feedback:
+- New generations link back via `parentGenId`
+- Full history graph maintained
+- Example: ARC puzzle → User refinement → AI iteration → etc.
+
+### How It Works
+
+1. Reads JSON files from `/data/arc-{year}/` directory
+2. Sends bulk import request to `/api/admin/puzzles/import`
+3. Admin API verifies admin key
+4. Creates Puzzle + Generation for each entry
+5. Preserves train/test designation
+6. Returns statistics (imported/skipped/failed)
