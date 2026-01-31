@@ -7,11 +7,17 @@ datasource db {
 }
 
 model Puzzle {
-  id          String       @id @default(cuid())
+  id          String       @id  // Content-based hash (16 chars) or ARC ID format
   idea        String
+  source      String       @default("generated")  // "generated" or "arc-dataset"
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   generations Generation[]
+  job         Job?         @relation(fields: [jobId], references: [id])
+  jobId       String?
+  
+  @@index([jobId])
+  @@index([source])
 }
 
 model Generation {
@@ -28,6 +34,7 @@ model Generation {
   reasoning   String?  @db.Text
   
   pairs       Pair[]
+  modelRuns   ModelRun[]  // Model evaluation runs for this generation
   
   feedback    Feedback?
   
@@ -40,7 +47,10 @@ model Pair {
   generation   Generation @relation(fields: [generationId], references: [id])
   input        Json   
   output       Json   
-  order        Int    
+  order        Int
+  isTestCase   Boolean @default(false)  // Mark pairs as test cases for model evaluation
+  
+  predictions  ModelPrediction[]  // Predictions made by models for this test case
 }
 
 model Feedback {
@@ -52,4 +62,81 @@ model Feedback {
   gridEdits    Json?      
   
   createdAt    DateTime   @default(now())
+}
+
+model ModelRun {
+  id           String   @id @default(cuid())
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id])
+  
+  modelName    String   // e.g., "gpt-4", "claude-3.5-sonnet"
+  provider     String   // e.g., "openai", "anthropic"
+  
+  status       String   @default("pending")  // pending, running, completed, failed
+  
+  reasoning    String?  @db.Text  // Model's reasoning about the puzzle pattern
+  
+  predictions  ModelPrediction[]
+  
+  // Metrics
+  correctCount Int      @default(0)
+  totalCount   Int      @default(0)
+  accuracy     Float?   // Calculated: correctCount / totalCount
+  
+  tokensUsed   Int?     // Total tokens used in this run
+  timeTakenMs  Int?     // Time taken to complete
+  
+  errorMessage String?  @db.Text  // Error details if status is "failed"
+  
+  // Metadata for extensibility
+  metadata     Json?    // Additional data (temperature, max_tokens, etc.)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([generationId])
+  @@index([modelName])
+  @@index([createdAt])
+}
+
+model ModelPrediction {
+  id        String   @id @default(cuid())
+  runId     String
+  run       ModelRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  
+  pairId    String   // The test case this prediction is for
+  pair      Pair     @relation(fields: [pairId], references: [id])
+  
+  predicted Json     // The predicted output grid
+  expected  Json     // The actual output grid (for easy comparison)
+  isCorrect Boolean  // Whether prediction matches expected
+  
+  reasoning String?  @db.Text  // Model's reasoning for this specific prediction
+  
+  createdAt DateTime @default(now())
+  
+  @@index([runId])
+  @@index([pairId])
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  concept     String   @db.Text  // The concept/idea sent to LLM
+  status      String   @default("pending")  // pending, running, completed, failed
+  
+  puzzleId    String?  // Link to created puzzle (if successful)
+  puzzles     Puzzle[]
+  
+  errorMessage String? @db.Text
+  
+  // Metadata
+  model       String?  // Model used for generation
+  tokensUsed  Int?
+  timeTakenMs Int?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([status])
+  @@index([createdAt])
 }

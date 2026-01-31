@@ -57,6 +57,10 @@ Generate the next version of the 5 pairs.`;
     }
 
     // 3. Create the new Generation
+    // Preserve test case designation based on the previous generation
+    const totalPairs = content.pairs.length;
+    const numTestCases = currentGen.pairs.filter(p => p.isTestCase).length;
+    
     const newGen = await prisma.generation.create({
       data: {
         puzzleId: id,
@@ -69,6 +73,7 @@ Generate the next version of the 5 pairs.`;
             input: p.input,
             output: p.output,
             order: i,
+            isTestCase: i >= totalPairs - numTestCases, // Preserve test case count
           })),
         },
       },
