@@ -3,17 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettings } from '@/context/SettingsContext';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Lock } from 'lucide-react';
 import { detectProvider, PROVIDER_MODELS } from '@/lib/llm';
 
 export default function NewPuzzlePage() {
   const [idea, setIdea] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
-  const { apiKey } = useSettings();
+  const [localApiKey, setLocalApiKey] = useState('');
+  const { apiKey: settingsApiKey } = useSettings();
   const router = useRouter();
 
-  const provider = detectProvider(apiKey);
+  // Use local API key if provided, otherwise fall back to settings
+  const activeApiKey = localApiKey || settingsApiKey;
+  const provider = detectProvider(activeApiKey);
   const availableModels = PROVIDER_MODELS[provider];
 
   useEffect(() => {
@@ -24,18 +27,20 @@ export default function NewPuzzlePage() {
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idea.trim() || !apiKey) return;
+    if (!idea.trim() || !activeApiKey) return;
 
     setIsGenerating(true);
     try {
       const resp = await fetch('/api/puzzles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, apiKey, model: selectedModel }),
+        body: JSON.stringify({ idea, apiKey: activeApiKey, model: selectedModel }),
       });
       const data = await resp.json();
       if (data.id) {
         router.push(`/puzzle/${data.id}?model=${selectedModel}`);
+      } else if (data.error) {
+        alert(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error(err);
@@ -66,6 +71,27 @@ export default function NewPuzzlePage() {
           />
         </div>
 
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">LLM API Key</label>
+          <input
+            type="password"
+            className="w-full p-3 border rounded-xl bg-white dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+            placeholder="sk-... or sk-ant-... or AIza... or gsk_..."
+            value={localApiKey}
+            onChange={(e) => setLocalApiKey(e.target.value)}
+            disabled={isGenerating}
+          />
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Lock size={12} />
+            <span>Your API key is never stored. Used only for this session.</span>
+          </div>
+          {provider !== 'unknown' && (
+            <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+              ✓ Detected: {provider.charAt(0).toUpperCase() + provider.slice(1)}
+            </div>
+          )}
+        </div>
+
         {availableModels.length > 0 && (
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Agent Model</label>
@@ -82,15 +108,15 @@ export default function NewPuzzlePage() {
           </div>
         )}
         
-        {!apiKey && (
+        {!activeApiKey && (
           <p className="text-sm text-red-500 font-medium">
-            Please enter your API key in the navbar to start.
+            Please enter your API key above to start.
           </p>
         )}
 
         <button
           type="submit"
-          disabled={isGenerating || !idea.trim() || !apiKey}
+          disabled={isGenerating || !idea.trim() || !activeApiKey}
           className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
         >
           {isGenerating ? (
