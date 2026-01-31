@@ -6,11 +6,10 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-12">
       <div className="space-y-4 max-w-2xl">
         <h1 className="text-6xl font-extrabold tracking-tighter bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
-          ARC Agent Creator
+          ARC Creator
         </h1>
         <p className="text-xl text-gray-500">
-          Transform any abstract concept into a set of 2D logic puzzles. 
-          The agent designs, you refine. Collaboration at the speed of thought.
+          Transform concepts into 2D logic puzzles. Agent designs, you refine. Test against world-class AI models.
         </p>
       </div>
 
