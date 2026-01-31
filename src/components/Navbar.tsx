@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PlusCircle, List, Settings, Cpu } from 'lucide-react';
+import { PlusCircle, List, Settings, Cpu, Briefcase } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext';
 import { detectProvider } from '@/lib/llm';
 
@@ -30,6 +30,12 @@ export default function Navbar() {
             className={`flex items-center gap-1 text-sm font-medium ${pathname === '/history' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
           >
             <List size={16} /> History
+          </Link>
+          <Link 
+            href="/jobs" 
+            className={`flex items-center gap-1 text-sm font-medium ${pathname === '/jobs' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <Briefcase size={16} /> Jobs
           </Link>
         </div>
       </div>

@@ -3,8 +3,10 @@
 import React, { useEffect, useState, use } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import PuzzlePair from '@/components/PuzzlePair';
+import PuzzleReviewTab from '@/components/PuzzleReviewTab';
+import ModelPerformancesTab from '@/components/ModelPerformancesTab';
 import { ARC_COLORS } from '@/components/ArcGrid';
-import { Loader2, Send, History as HistoryIcon, MessageSquare, BrainCircuit } from 'lucide-react';
+import { Loader2, Send, History as HistoryIcon, MessageSquare, BrainCircuit, Eye, BarChart3 } from 'lucide-react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { detectProvider, PROVIDER_MODELS } from '@/lib/llm';
 
@@ -23,6 +25,7 @@ export default function PuzzleDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedColor, setSelectedColor] = useState(1);
   const [selectedModel, setSelectedModel] = useState(initialModel);
+  const [activeTab, setActiveTab] = useState<'review' | 'performance'>('review');
 
   const provider = detectProvider(apiKey);
   const availableModels = PROVIDER_MODELS[provider];
@@ -125,49 +128,53 @@ export default function PuzzleDetailPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setActiveTab('review')}
+          className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
+            activeTab === 'review'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Eye size={18} />
+          Puzzle Review
+        </button>
+        <button
+          onClick={() => setActiveTab('performance')}
+          className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
+            activeTab === 'performance'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <BarChart3 size={18} />
+          Model Performances
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left: Puzzle Pairs */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between pb-2 border-b">
-            <h2 className="text-xl font-semibold">Challenge Pairs (5)</h2>
-            <div className="flex gap-1">
-              {Object.keys(ARC_COLORS).map((c) => (
-                <button
-                  key={c}
-                  className={`w-6 h-6 rounded border ${selectedColor === Number(c) ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${ARC_COLORS[Number(c)]}`}
-                  onClick={() => setSelectedColor(Number(c))}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-4">
-            {editedPairs.map((pair, idx) => (
-              <PuzzlePair 
-                key={pair.id || idx}
-                input={pair.input}
-                output={pair.output}
-                onEditInput={(r, c) => handleCellClick(idx, 'input', r, c)}
-                onEditOutput={(r, c) => handleCellClick(idx, 'output', r, c)}
-                onResizeInput={(rows, cols) => resizeGrid(idx, 'input', rows, cols)}
-                onResizeOutput={(rows, cols) => resizeGrid(idx, 'output', rows, cols)}
-                editable
-              />
-            ))}
-          </div>
+        {/* Left: Tab Content */}
+        <div className="lg:col-span-2">
+          {activeTab === 'review' ? (
+            <PuzzleReviewTab
+              currentGen={currentGen}
+              editedPairs={editedPairs}
+              selectedColor={selectedColor}
+              setSelectedColor={setSelectedColor}
+              onEditInput={(pairIndex, r, c) => handleCellClick(pairIndex, 'input', r, c)}
+              onEditOutput={(pairIndex, r, c) => handleCellClick(pairIndex, 'output', r, c)}
+              onResizeInput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'input', rows, cols)}
+              onResizeOutput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'output', rows, cols)}
+            />
+          ) : (
+            <ModelPerformancesTab generationId={currentGen?.id} />
+          )}
         </div>
 
         {/* Right: Feedback & History */}
         <div className="space-y-6">
-          {/* Agent Reasoning Section */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <BrainCircuit className="text-blue-600" size={20} />
-              <h2 className="text-xl font-semibold">Agent Reasoning</h2>
-            </div>
-            <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap italic">
-              {currentGen?.reasoning || "No reasoning trace available for this version."}
-            </div>
-          </div>
 
           <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm sticky top-8">
             <div className="flex items-center gap-2 mb-4">

@@ -11,12 +11,14 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.1",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
     "nanoid": "^5.1.6",
     "next": "16.1.4",
+    "openai": "^6.17.0",
     "pg": "^8.17.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
