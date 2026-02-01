@@ -5,24 +5,25 @@ import { generatePuzzleId } from '@/lib/puzzleId';
 
 /**
  * POST /api/admin/puzzles/import
- * 
- * Bulk import official ARC puzzles from datasets (2024, 2025, etc.)
- * 
+ *
+ * Bulk import ARC puzzles from any dataset.
+ *
  * Request body:
  * {
  *   "adminKey": "secret_key",
- *   "source": "arc-2024-training" | "arc-2024-evaluation" | "arc-2025-training" | "arc-2025-evaluation",
+ *   "source": "concept-arc" | "arc-community" | "arc-2024-training" | etc.,
+ *   "tags": ["ConceptARC", "AboveBelow"],  // optional, auto-derived from source if omitted
  *   "puzzles": {
  *     "puzzle_id": {
  *       "train": [{"input": [[...]], "output": [[...]]}],
- *       "test": [{"input": [[...]]}]  // optional, for evaluation sets
+ *       "test": [{"input": [[...]]}]
  *     }
  *   }
  * }
  */
 export async function POST(req: NextRequest) {
   try {
-    const { adminKey, source, puzzles } = await req.json();
+    const { adminKey, source, tags: customTags, puzzles } = await req.json();
 
     // Verify admin key
     if (!adminKey || !verifyAdminKey(adminKey)) {
@@ -35,23 +36,6 @@ export async function POST(req: NextRequest) {
     if (!source || !puzzles) {
       return NextResponse.json(
         { error: 'Missing required fields: source, puzzles' },
-        { status: 400 }
-      );
-    }
-
-    // Validate source format
-    const validSources = [
-      'arc-2024-training',
-      'arc-2024-evaluation',
-      'arc-2024-test',
-      'arc-2025-training',
-      'arc-2025-evaluation',
-      'arc-2025-test',
-    ];
-
-    if (!validSources.includes(source)) {
-      return NextResponse.json(
-        { error: `Invalid source. Must be one of: ${validSources.join(', ')}` },
         { status: 400 }
       );
     }
@@ -69,7 +53,7 @@ export async function POST(req: NextRequest) {
         // Combine train and test pairs
         const trainPairs = puzzleData.train || [];
         const testPairs = puzzleData.test || [];
-        
+
         if (trainPairs.length === 0) {
           results.errors.push(`${arcId}: No training pairs found`);
           results.failed++;
@@ -79,11 +63,17 @@ export async function POST(req: NextRequest) {
         // Create the idea/description from source
         const idea = arcId;  // Just use the ID
 
-        // Extract tags from source (e.g., "arc-2024-training" → ["ARC-AGI 2024", "training"])
-        const parts = source.split('-');
-        const year = parts[1]; // e.g., "2024"
-        const split = parts.slice(2).join('-'); // e.g., "training"
-        const tags = [`ARC-AGI ${year}`, split];
+        // Use custom tags if provided, otherwise derive from source
+        let tags: string[];
+        if (customTags && Array.isArray(customTags)) {
+          tags = customTags;
+        } else {
+          // Legacy: extract tags from source (e.g., "arc-2024-training" → ["ARC-AGI 2024", "training"])
+          const parts = source.split('-');
+          const year = parts[1]; // e.g., "2024"
+          const split = parts.slice(2).join('-'); // e.g., "training"
+          tags = [`ARC-AGI ${year}`, split];
+        }
         
         // Prepare pairs with proper ordering and test designation
         const allPairs = [

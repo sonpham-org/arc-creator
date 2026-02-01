@@ -170,8 +170,16 @@ export default function PuzzleDetailPage() {
     <div className="space-y-6 pb-20">
       <div className="border-b pb-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{puzzle.idea}</h1>
-          <div className="flex gap-2">
+          <div>
+            <h1 className="text-3xl font-bold font-mono">{puzzle.id}</h1>
+            {puzzle.idea && puzzle.idea !== puzzle.id && (
+              <p className="text-sm text-gray-500 mt-1">{puzzle.idea}</p>
+            )}
+            {puzzle.source && puzzle.idea === puzzle.id && (
+              <p className="text-sm text-gray-500 mt-1">{puzzle.source}</p>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap justify-end">
             {puzzle.tags?.map((tag: string) => (
               <span key={tag} className="text-xs font-semibold bg-blue-100 dark:bg-blue-900 px-3 py-1 rounded-full text-blue-700 dark:text-blue-300">
                 {tag}
