@@ -90,9 +90,81 @@ export function getProviderConfig(provider: LLMProvider, apiKey: string, model?:
   }
 }
 
-export async function callLLM(provider: LLMProvider, apiKey: string, systemPrompt: string, userPrompt: string, model?: string) {
+export async function callLLM(
+  provider: LLMProvider, 
+  apiKey: string, 
+  systemPrompt: string, 
+  userPrompt: string, 
+  model?: string,
+  onProgress?: (chunk: string, type: 'thought' | 'content') => void,
+  isCancelled?: () => boolean
+) {
   const config = getProviderConfig(provider, apiKey, model);
   
+  // Streaming implementation for progress tracking
+  if (onProgress) {
+    if (provider === 'openai' || provider === 'groq') {
+      const response = await fetch(config.url, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          stream: true,
+          // reasoning_effort: 'high' // for o1/o3 models if supported
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Streaming failed: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      
+      while (reader) {
+        if (isCancelled?.()) {
+          await reader.cancel();
+          throw new Error('LLM call cancelled by user');
+        }
+        
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            if (dataStr === '[DONE]') continue;
+            try {
+              const data = JSON.parse(dataStr);
+              const delta = data.choices[0]?.delta;
+              
+              // Handle reasoning (thought) for models like o1/o3/deepseek
+              if (delta?.reasoning_content) {
+                onProgress(delta.reasoning_content, 'thought');
+              }
+              
+              if (delta?.content) {
+                fullContent += delta.content;
+                onProgress(delta.content, 'content');
+              }
+            } catch (e) { /* ignore parse errors for partial chunks */ }
+          }
+        }
+      }
+      return { content: fullContent, tokensUsed: 0 }; // Tokens will be calculated via completion if needed
+    }
+  }
+
+  // Fallback to non-streaming for now if no progress callback or for unsupported providers
   let body: any;
   if (provider === 'openai' || provider === 'groq') {
     body = {
