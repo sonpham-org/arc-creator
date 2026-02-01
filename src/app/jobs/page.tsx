@@ -55,6 +55,7 @@ export default function JobsPage() {
       running: { bg: 'bg-blue-100 text-blue-800', text: 'Running', icon: Loader2 },
       completed: { bg: 'bg-green-100 text-green-800', text: 'Completed', icon: CheckCircle },
       failed: { bg: 'bg-red-100 text-red-800', text: 'Failed', icon: XCircle },
+      cancelled: { bg: 'bg-gray-100 text-gray-500', text: 'Cancelled', icon: XCircle },
     };
 
     const badge = badges[status] || badges.pending;
@@ -82,46 +83,50 @@ export default function JobsPage() {
     running: jobs.filter(j => j.status === 'running').length,
     completed: jobs.filter(j => j.status === 'completed').length,
     failed: jobs.filter(j => j.status === 'failed').length,
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b pb-6">
-        <h1 className="text-3xl font-bold mb-2">Puzzle Generation Jobs</h1>
-        <p className="text-gray-600">Track bulk puzzle generation tasks</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-gray-900 border rounded-lg p-4">
-          <div className="text-2xl font-bold">{stats.total}</div>
-          <div className="text-sm text-gray-500">Total</div>
+      cancelled: jobs.filter(j => j.status === 'cancelled').length,
+    };
+  
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="border-b pb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Generation Jobs</h1>
+            <p className="text-gray-600">Track and monitor puzzle creation progress</p>
+          </div>
         </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-yellow-800">{stats.pending}</div>
-          <div className="text-sm text-yellow-600">Pending</div>
+  
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+          <div className="bg-white dark:bg-gray-900 border rounded-lg p-4">
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-sm text-gray-500">Total</div>
+          </div>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 rounded-lg p-4">
+            <div className="text-2xl font-bold text-yellow-800">{stats.pending}</div>
+            <div className="text-sm text-yellow-600">Pending</div>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4">
+            <div className="text-2xl font-bold text-blue-800">{stats.running}</div>
+            <div className="text-sm text-blue-600">Running</div>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 rounded-lg p-4">
+            <div className="text-2xl font-bold text-green-800">{stats.completed}</div>
+            <div className="text-sm text-green-600">Completed</div>
+          </div>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg p-4">
+            <div className="text-2xl font-bold text-red-800">{stats.failed}</div>
+            <div className="text-sm text-red-600">Failed</div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 rounded-lg p-4">
+            <div className="text-2xl font-bold text-gray-800">{stats.cancelled}</div>
+            <div className="text-sm text-gray-600">Cancelled</div>
+          </div>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-blue-800">{stats.running}</div>
-          <div className="text-sm text-blue-600">Running</div>
-        </div>
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-green-800">{stats.completed}</div>
-          <div className="text-sm text-green-600">Completed</div>
-        </div>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-red-800">{stats.failed}</div>
-          <div className="text-sm text-red-600">Failed</div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-2">
-        {['all', 'pending', 'running', 'completed', 'failed'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
+  
+        {/* Filters */}
+        <div className="flex gap-2">
+          {['all', 'pending', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
               filter === f
                 ? 'bg-blue-600 text-white'
@@ -180,20 +185,30 @@ export default function JobsPage() {
                   )}
                 </div>
 
-                {job.puzzles && job.puzzles.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {job.puzzles.map((puzzle: any) => (
-                      <Link
-                        key={puzzle.id}
-                        href={`/puzzle/${puzzle.id}`}
-                        className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        View Puzzle
-                        <ExternalLink size={14} />
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-col gap-2 shrink-0">
+                  <Link
+                    href={`/jobs/${job.id}`}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Monitor Job
+                    <BrainCircuit size={14} />
+                  </Link>
+
+                  {job.puzzles && job.puzzles.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {job.puzzles.map((puzzle: any) => (
+                        <Link
+                          key={puzzle.id}
+                          href={`/puzzle/${puzzle.id}`}
+                          className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          View Result
+                          <ExternalLink size={14} />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

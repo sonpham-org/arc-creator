@@ -45,7 +45,39 @@ export async function POST(req: NextRequest) {
     const systemPrompt = 'You are an ARC puzzle creator. Generate a challenge with 5 input/output pairs based on a concept. Output strictly JSON with "pairs": [{"input": [[]], "output": [[]]}] and "explanation": "string". Pairs must be exactly 5. Colors 0-9. Max grid 30x30.';
     const userPrompt = `Concept: ${idea}`;
 
-    const { content: llmContent, tokensUsed } = await callLLM(provider, apiKey, systemPrompt, userPrompt, model);
+    let currentThought = '';
+    let currentContent = '';
+    let lastUpdate = Date.now();
+
+    const { content: llmContent, tokensUsed } = await callLLM(
+      provider, 
+      apiKey, 
+      systemPrompt, 
+      userPrompt, 
+      model,
+      async (chunk, type) => {
+        if (type === 'thought') currentThought += chunk;
+        else currentContent += chunk;
+
+        // Throttled update to database every 1 second
+        if (jobId && Date.now() - lastUpdate > 1000) {
+          lastUpdate = Date.now();
+          await prisma.job.update({
+            where: { id: jobId },
+            data: { 
+              thought: currentThought,
+              content: currentContent,
+              model: model || null
+            }
+          }).catch(() => {}); // soft fail on background update
+        }
+      },
+      async () => {
+        if (!jobId) return false;
+        const job = await prisma.job.findUnique({ where: { id: jobId } }).catch(() => null);
+        return job?.status === 'cancelled';
+      }
+    );
     
     const endTime = Date.now();
     const timeTakenMs = endTime - startTime;
