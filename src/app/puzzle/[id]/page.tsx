@@ -26,6 +26,9 @@ export default function PuzzleDetailPage() {
   const [selectedColor, setSelectedColor] = useState(1);
   const [selectedModel, setSelectedModel] = useState(initialModel);
   const [activeTab, setActiveTab] = useState<'review' | 'performance'>('review');
+  const [editMode, setEditMode] = useState(false);
+  const [ratings, setRatings] = useState<any>(null);
+  const [userRating, setUserRating] = useState({ quality: 0, difficulty: 0, interestingness: 0 });
 
   const provider = detectProvider(apiKey);
   const availableModels = PROVIDER_MODELS[provider];
@@ -38,7 +41,18 @@ export default function PuzzleDetailPage() {
 
   useEffect(() => {
     fetchPuzzle();
+    fetchRatings();
   }, [id]);
+
+  const fetchRatings = async () => {
+    try {
+      const resp = await fetch(`/api/puzzles/${id}/ratings`);
+      const data = await resp.json();
+      setRatings(data);
+    } catch (err) {
+      console.error('Failed to fetch ratings:', err);
+    }
+  };
 
   const fetchPuzzle = async () => {
     setLoading(true);
@@ -101,6 +115,7 @@ export default function PuzzleDetailPage() {
         // Refresh or update state
         fetchPuzzle();
         setVerbalFeedback('');
+        setEditMode(false);
       }
     } catch (err) {
       console.error(err);
@@ -110,21 +125,59 @@ export default function PuzzleDetailPage() {
     }
   };
 
+  const handleSubmitRating = async () => {
+    if (!userRating.quality || !userRating.difficulty || !userRating.interestingness) {
+      alert('Please rate all three aspects');
+      return;
+    }
+    
+    try {
+      await fetch(`/api/puzzles/${id}/ratings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userRating),
+      });
+      fetchRatings();
+      setUserRating({ quality: 0, difficulty: 0, interestingness: 0 });
+    } catch (err) {
+      console.error('Failed to submit rating:', err);
+      alert('Failed to submit rating');
+    }
+  };
+
+  const renderStars = (value: number, onChange?: (v: number) => void) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => onChange?.(star)}
+            disabled={!onChange}
+            className={`text-2xl ${star <= value ? 'text-yellow-400' : 'text-gray-300'} ${onChange ? 'hover:text-yellow-300 cursor-pointer' : 'cursor-default'}`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) return <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
   if (!puzzle) return <div className="text-center pt-20 text-red-500">Puzzle not found.</div>;
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-6 pb-20">
       <div className="border-b pb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">{puzzle.idea}</h1>
-          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-500 uppercase tracking-wider">
-            ID: {id}
-          </span>
-        </div>
-        <div className="flex gap-4 mt-2 text-sm text-gray-500">
-          <span>Tokens: {currentGen?.tokensUsed}</span>
-          <span>Time: {(currentGen?.timeTakenMs / 1000).toFixed(1)}s</span>
+          <div className="flex gap-2">
+            {puzzle.tags?.map((tag: string) => (
+              <span key={tag} className="text-xs font-semibold bg-blue-100 dark:bg-blue-900 px-3 py-1 rounded-full text-blue-700 dark:text-blue-300">
+                {tag}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -154,87 +207,186 @@ export default function PuzzleDetailPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Tab Content */}
         <div className="lg:col-span-2">
           {activeTab === 'review' ? (
-            <PuzzleReviewTab
-              currentGen={currentGen}
-              editedPairs={editedPairs}
-              selectedColor={selectedColor}
-              setSelectedColor={setSelectedColor}
-              onEditInput={(pairIndex, r, c) => handleCellClick(pairIndex, 'input', r, c)}
-              onEditOutput={(pairIndex, r, c) => handleCellClick(pairIndex, 'output', r, c)}
-              onResizeInput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'input', rows, cols)}
-              onResizeOutput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'output', rows, cols)}
-            />
+            currentGen && editedPairs.length > 0 ? (
+              <PuzzleReviewTab
+                currentGen={currentGen}
+                editedPairs={editedPairs}
+                selectedColor={selectedColor}
+                setSelectedColor={setSelectedColor}
+                editMode={editMode}
+                onEditInput={(pairIndex, r, c) => handleCellClick(pairIndex, 'input', r, c)}
+                onEditOutput={(pairIndex, r, c) => handleCellClick(pairIndex, 'output', r, c)}
+                onResizeInput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'input', rows, cols)}
+                onResizeOutput={(pairIndex, rows, cols) => resizeGrid(pairIndex, 'output', rows, cols)}
+              />
+            ) : (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+              </div>
+            )
           ) : (
             <ModelPerformancesTab generationId={currentGen?.id} />
           )}
         </div>
 
-        {/* Right: Feedback & History */}
+        {/* Right: Ratings & Feedback */}
         <div className="space-y-6">
-
-          <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm sticky top-8">
-            <div className="flex items-center gap-2 mb-4">
-              <MessageSquare className="text-blue-600" size={20} />
-              <h2 className="text-xl font-semibold">Give Feedback</h2>
-            </div>
-
-            {availableModels.length > 0 && (
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-gray-500 mb-1 block uppercase">Agent Model</label>
-                <select
-                  className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={isSubmitting}
-                >
-                  {availableModels.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+          
+          {/* Rating Section */}
+          <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm">
+            <h2 className="text-xl font-semibold mb-4">Rate this Puzzle</h2>
+            
+            {ratings && ratings.count > 0 && (
+              <div className="mb-6 pb-6 border-b">
+                <div className="text-sm text-gray-500 mb-3">{ratings.count} rating{ratings.count > 1 ? 's' : ''}</div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Quality</span>
+                    {renderStars(Math.round(ratings.averages.quality))}
+                    <span className="text-sm text-gray-500">{ratings.averages.quality.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Difficulty</span>
+                    {renderStars(Math.round(ratings.averages.difficulty))}
+                    <span className="text-sm text-gray-500">{ratings.averages.difficulty.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Interestingness</span>
+                    {renderStars(Math.round(ratings.averages.interestingness))}
+                    <span className="text-sm text-gray-500">{ratings.averages.interestingness.toFixed(1)}</span>
+                  </div>
+                </div>
               </div>
             )}
 
-            <textarea
-              className="w-full h-32 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-4"
-              placeholder="What should be improved? The logic is wrong, the colors are off..."
-              value={verbalFeedback}
-              onChange={(e) => setVerbalFeedback(e.target.value)}
-            />
-            <button
-              onClick={handleSubmitFeedback}
-              disabled={isSubmitting || (!verbalFeedback.trim() && JSON.stringify(currentGen?.pairs) === JSON.stringify(editedPairs))}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <><Loader2 className="animate-spin" size={18} /> Iterating...</>
-              ) : (
-                <><Send size={18} /> Submit Feedback</>
-              )}
-            </button>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium block mb-2">Quality</label>
+                {renderStars(userRating.quality, (v) => setUserRating({ ...userRating, quality: v }))}
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-2">Difficulty</label>
+                {renderStars(userRating.difficulty, (v) => setUserRating({ ...userRating, difficulty: v }))}
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-2">Interestingness</label>
+                {renderStars(userRating.interestingness, (v) => setUserRating({ ...userRating, interestingness: v }))}
+              </div>
+              <button
+                onClick={handleSubmitRating}
+                disabled={!userRating.quality || !userRating.difficulty || !userRating.interestingness}
+                className="w-full py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-all text-sm"
+              >
+                Submit Rating
+              </button>
+            </div>
+          </div>
 
-            <div className="mt-8 pt-8 border-t">
-              <div className="flex items-center gap-2 mb-4">
-                <HistoryIcon className="text-gray-500" size={20} />
-                <h2 className="text-xl font-semibold">Branch History</h2>
+          {/* Improve Puzzle Button */}
+          {!editMode && (
+            <button
+              onClick={() => setEditMode(true)}
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all shadow-lg text-lg"
+            >
+              ✏️ Improve this Puzzle
+            </button>
+          )}
+
+          {/* Feedback Section - Only in Edit Mode */}
+          {editMode && (
+            <div className="bg-white dark:bg-gray-900 border-2 border-red-500 rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="text-red-600" size={20} />
+                  <h2 className="text-xl font-semibold">Give Feedback</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditMode(false);
+                    setEditedPairs(JSON.parse(JSON.stringify(currentGen.pairs)));
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
               </div>
-              <div className="space-y-3">
-                {puzzle.generations?.map((gen: any, idx: number) => (
-                  <button
-                    key={gen.id}
-                    onClick={() => {
-                      setCurrentGen(gen);
-                      setEditedPairs(JSON.parse(JSON.stringify(gen.pairs)));
-                    }}
-                    className={`w-full text-left p-2 rounded text-sm transition-colors ${currentGen?.id === gen.id ? 'bg-blue-100 text-blue-700 border-blue-200' : 'hover:bg-gray-100 border-transparent'} border`}
+
+              {/* Color Palette */}
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <label className="text-xs font-semibold text-gray-500 mb-2 block uppercase">Color Palette</label>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(ARC_COLORS).map(([num, color]) => (
+                    <button
+                      key={num}
+                      onClick={() => setSelectedColor(Number(num))}
+                      className={`w-10 h-10 rounded border-2 transition-all ${selectedColor === Number(num) ? 'border-blue-600 scale-110 shadow-lg' : 'border-gray-300'}`}
+                      style={{ backgroundColor: color }}
+                      title={`Color ${num}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {availableModels.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block uppercase">Agent Model</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={isSubmitting}
                   >
-                    Version {idx + 1} - {new Date(gen.createdAt).toLocaleTimeString()}
-                  </button>
-                ))}
-              </div>
+                    {availableModels.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <textarea
+                className="w-full h-32 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800 text-sm focus:ring-2 focus:ring-red-500 outline-none mb-4"
+                placeholder="What should be improved? The logic is wrong, the colors are off..."
+                value={verbalFeedback}
+                onChange={(e) => setVerbalFeedback(e.target.value)}
+              />
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={isSubmitting || (!verbalFeedback.trim() && JSON.stringify(currentGen?.pairs) === JSON.stringify(editedPairs))}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="animate-spin" size={18} /> Iterating...</>
+                ) : (
+                  <><Send size={18} /> Submit Feedback</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* History Section */}
+          <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <HistoryIcon className="text-gray-500" size={20} />
+              <h2 className="text-xl font-semibold">Version History</h2>
+            </div>
+            <div className="space-y-2">
+              {puzzle.generations?.map((gen: any, idx: number) => (
+                <button
+                  key={gen.id}
+                  onClick={() => {
+                    setCurrentGen(gen);
+                    setEditedPairs(JSON.parse(JSON.stringify(gen.pairs)));
+                  }}
+                  className={`w-full text-left p-3 rounded text-sm transition-colors ${currentGen?.id === gen.id ? 'bg-blue-100 text-blue-700 border-blue-200' : 'hover:bg-gray-100 border-transparent'} border`}
+                >
+                  <div className="font-semibold">Version {idx + 1}</div>
+                  <div className="text-xs text-gray-500">{new Date(gen.createdAt).toLocaleString()}</div>
+                </button>
+              ))}
             </div>
           </div>
         </div>

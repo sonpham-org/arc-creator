@@ -11,9 +11,11 @@ model Puzzle {
   id          String       @id  // Content-based hash (16 chars) or ARC ID format
   idea        String
   source      String       @default("generated")  // "generated" or "arc-dataset"
+  tags        String[]     @default([])  // Tags like "arc-2024", "geometric", etc.
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   generations Generation[]
+  ratings     Rating[]
   job         Job?         @relation(fields: [jobId], references: [id])
   jobId       String?
   
@@ -140,4 +142,21 @@ model Job {
   
   @@index([status])
   @@index([createdAt])
+}
+
+model Rating {
+  id          String   @id @default(cuid())
+  puzzleId    String
+  puzzle      Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  
+  userId      String?  // Optional: for user tracking (IP or session ID)
+  
+  quality     Int      // 1-5 stars
+  difficulty  Int      // 1-5 stars
+  interestingness Int  // 1-5 stars
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([puzzleId])
+  @@index([userId])
 }

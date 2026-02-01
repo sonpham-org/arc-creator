@@ -77,8 +77,11 @@ export async function POST(req: NextRequest) {
         }
 
         // Create the idea/description from source
-        const idea = `Official ARC puzzle from ${source} (ID: ${arcId})`;
+        const idea = arcId;  // Just use the ID
 
+        // Extract tags from source (e.g., "arc-2024-training" → ["arc-2024", "training"])
+        const tags = source.split('-').filter(Boolean);
+        
         // Prepare pairs with proper ordering and test designation
         const allPairs = [
           ...trainPairs.map((pair: any, i: number) => ({
@@ -115,6 +118,7 @@ export async function POST(req: NextRequest) {
               id: puzzleId,
               idea,
               source, // Mark as official dataset puzzle
+              tags,   // Add tags
             },
           });
 
@@ -124,7 +128,7 @@ export async function POST(req: NextRequest) {
               parentGenId: null, // No parent - this is the OG
               tokensUsed: 0,
               timeTakenMs: 0,
-              reasoning: `Official ARC puzzle imported from ${source}`,
+              reasoning: null,  // No reasoning for imported puzzles
               pairs: {
                 create: allPairs,
               },
