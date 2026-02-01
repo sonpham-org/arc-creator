@@ -42,7 +42,6 @@ export const PROVIDER_MODELS: Record<LLMProvider, string[]> = {
   groq: [
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
-    'deepseek-r1-distill-llama-70b',
     'mixtral-8x7b-32768',
   ],
   mistral: [
@@ -312,7 +311,6 @@ export const PROVIDER_RATE_LIMITS: Record<string, { rpm: number; rpd: number }> 
   // Groq
   'groq:llama-3.3-70b-versatile': { rpm: 30, rpd: 1000 },
   'groq:llama-3.1-8b-instant': { rpm: 30, rpd: 14400 },
-  'groq:deepseek-r1-distill-llama-70b': { rpm: 30, rpd: 1000 },
   'groq:mixtral-8x7b-32768': { rpm: 30, rpd: 14400 },
   // Gemini
   'gemini:gemini-2.5-flash': { rpm: 5, rpd: 20 },

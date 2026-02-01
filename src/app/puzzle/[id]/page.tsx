@@ -181,7 +181,11 @@ export default function PuzzleDetailPage() {
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
             {puzzle.tags?.map((tag: string) => (
-              <span key={tag} className="text-xs font-semibold bg-blue-100 dark:bg-blue-900 px-3 py-1 rounded-full text-blue-700 dark:text-blue-300">
+              <span key={tag} className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                tag === 'agent'
+                  ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+                  : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+              }`}>
                 {tag}
               </span>
             ))}

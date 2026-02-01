@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSettings } from '@/context/SettingsContext';
-import { Loader2, Play, Trophy, Clock, Zap, ChevronRight, Brain } from 'lucide-react';
+import { Loader2, Play, Trophy, Clock, Zap, ChevronRight, Brain, ArrowUpDown, ArrowUp, ArrowDown, Code, DollarSign } from 'lucide-react';
 import ArcGrid from './ArcGrid';
 
 interface ModelPerformancesTabProps {
   generationId: string;
 }
+
+type SortField = 'accuracy' | 'estimatedCost' | 'tokensUsed' | 'timeTakenMs' | 'createdAt';
+type SortDir = 'asc' | 'desc';
 
 export default function ModelPerformancesTab({ generationId }: ModelPerformancesTabProps) {
   const { apiKey } = useSettings();
@@ -16,14 +19,17 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
   const [selectedRun, setSelectedRun] = useState<any>(null);
   const [showNewRunForm, setShowNewRunForm] = useState(false);
   const [formData, setFormData] = useState({
-    modelName: 'claude-3-5-sonnet-20241022',
-    provider: 'anthropic',
+    modelName: 'llama-3.3-70b-versatile',
+    provider: 'groq',
     apiKey: '',
     temperature: 0.7,
     maxTokens: 4000,
+    strategy: 'direct',
   });
   const [isCreating, setIsCreating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const predContainerRef = useRef<HTMLDivElement>(null);
   const [predContainerWidth, setPredContainerWidth] = useState(0);
 
@@ -41,7 +47,6 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
   // Compute uniform cell size for prediction grids (3 grids side by side)
   const predCellSize = useMemo(() => {
     if (!predContainerWidth || !selectedRun?.predictions?.length) return 32;
-    // 3 columns with gap-4 (16px each gap = 32px) + p-4 padding (32px) + p-6 outer (48px) + borders (16px)
     const overhead = 128;
     const availableWidth = predContainerWidth - overhead;
 
@@ -58,9 +63,25 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
     return Math.max(4, Math.min(48, computed));
   }, [predContainerWidth, selectedRun]);
 
+  const sortedRuns = useMemo(() => {
+    return [...runs].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+      // Handle nulls — push to end
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      if (sortField === 'createdAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      }
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+  }, [runs, sortField, sortDir]);
+
   useEffect(() => {
     fetchRuns();
-    const interval = setInterval(fetchRuns, 3000); // Poll every 3 seconds
+    const interval = setInterval(fetchRuns, 3000);
     return () => clearInterval(interval);
   }, [generationId]);
 
@@ -76,6 +97,20 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
     }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir(field === 'accuracy' ? 'desc' : 'asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  };
+
   const createAndExecuteRun = async () => {
     if (!formData.apiKey) {
       alert('Please enter an API key');
@@ -84,7 +119,6 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
 
     setIsCreating(true);
     try {
-      // Create the run
       const createResp = await fetch(`/api/generations/${generationId}/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,7 +126,6 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
       });
       const newRun = await createResp.json();
 
-      // Execute the run
       setIsExecuting(true);
       await fetch(`/api/runs/${newRun.id}/execute`, {
         method: 'POST',
@@ -100,7 +133,6 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
         body: JSON.stringify({ apiKey: formData.apiKey }),
       });
 
-      // Reset form
       setShowNewRunForm(false);
       setFormData({ ...formData, apiKey: '' });
       fetchRuns();
@@ -123,6 +155,13 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
     }
   };
 
+  const formatCost = (cost: number | null | undefined) => {
+    if (cost == null) return 'N/A';
+    if (cost === 0) return '$0.00';
+    if (cost < 0.01) return `$${cost.toFixed(4)}`;
+    return `$${cost.toFixed(2)}`;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -131,6 +170,7 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
     );
   }
 
+  // Detail view for a selected run
   if (selectedRun) {
     return (
       <div className="space-y-6">
@@ -142,9 +182,18 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
         </button>
 
         <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm">
-          <h2 className="text-2xl font-bold mb-4">{selectedRun.modelName}</h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-2xl font-bold">{selectedRun.modelName}</h2>
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+              selectedRun.strategy === 'code'
+                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+            }`}>
+              {selectedRun.strategy === 'code' ? 'Code Gen' : 'Direct'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
               <div className="text-xs text-blue-600 font-semibold uppercase mb-1">Accuracy</div>
               <div className="text-2xl font-bold">
@@ -160,6 +209,10 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
             <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
               <div className="text-xs text-purple-600 font-semibold uppercase mb-1">Tokens</div>
               <div className="text-2xl font-bold">{selectedRun.tokensUsed?.toLocaleString() || 'N/A'}</div>
+            </div>
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+              <div className="text-xs text-yellow-600 font-semibold uppercase mb-1">Est. Cost</div>
+              <div className="text-2xl font-bold">{formatCost(selectedRun.estimatedCost)}</div>
             </div>
             <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
               <div className="text-xs text-orange-600 font-semibold uppercase mb-1">Time</div>
@@ -181,19 +234,31 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
             </div>
           )}
 
+          {selectedRun.generatedCode && (
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Code className="text-purple-600" size={20} />
+                <h3 className="text-lg font-semibold">Generated Code</h3>
+              </div>
+              <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm font-mono">
+                <code>{selectedRun.generatedCode}</code>
+              </pre>
+            </div>
+          )}
+
           <h3 className="text-xl font-bold mb-4">Predictions</h3>
           <div ref={predContainerRef} className="space-y-6">
             {selectedRun.predictions?.map((pred: any, idx: number) => (
               <div key={pred.id} className={`border-2 rounded-lg p-4 ${
-                pred.isCorrect 
-                  ? 'border-green-300 bg-green-50/50 dark:bg-green-900/10' 
+                pred.isCorrect
+                  ? 'border-green-300 bg-green-50/50 dark:bg-green-900/10'
                   : 'border-red-300 bg-red-50/50 dark:bg-red-900/10'
               }`}>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Test Case {idx + 1}</h4>
                   <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    pred.isCorrect 
-                      ? 'bg-green-200 text-green-800' 
+                    pred.isCorrect
+                      ? 'bg-green-200 text-green-800'
                       : 'bg-red-200 text-red-800'
                   }`}>
                     {pred.isCorrect ? '✓ Correct' : '✗ Incorrect'}
@@ -222,6 +287,7 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
     );
   }
 
+  // Main table view
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -238,18 +304,37 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
       {showNewRunForm && (
         <div className="bg-white dark:bg-gray-900 border rounded-xl p-6 shadow-sm">
           <h3 className="text-lg font-bold mb-4">Configure New Run</h3>
-          
+
           <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-gray-500 mb-1 block uppercase">Provider</label>
-              <select
-                className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm"
-                value={formData.provider}
-                onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
-              >
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block uppercase">Provider</label>
+                <select
+                  className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm"
+                  value={formData.provider}
+                  onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                >
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="groq">Groq</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="mistral">Mistral</option>
+                  <option value="cerebras">Cerebras</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block uppercase">Strategy</label>
+                <select
+                  className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm"
+                  value={formData.strategy}
+                  onChange={(e) => setFormData({ ...formData, strategy: e.target.value })}
+                >
+                  <option value="direct">Direct Solve</option>
+                  <option value="code">Code Generation</option>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -259,7 +344,7 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
                 className="w-full p-2 border rounded bg-white dark:bg-gray-900 text-sm"
                 value={formData.modelName}
                 onChange={(e) => setFormData({ ...formData, modelName: e.target.value })}
-                placeholder="e.g., claude-3-5-sonnet-20241022"
+                placeholder="e.g., llama-3.3-70b-versatile"
               />
             </div>
 
@@ -305,7 +390,7 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
             >
               {isCreating || isExecuting ? (
-                <><Loader2 className="animate-spin" size={18} /> Creating...</>
+                <><Loader2 className="animate-spin" size={18} /> {isExecuting ? 'Executing...' : 'Creating...'}</>
               ) : (
                 <><Play size={18} /> Create & Execute</>
               )}
@@ -321,59 +406,102 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
             No model runs yet
           </p>
           <p className="text-gray-500 dark:text-gray-500 text-sm mt-2">
-            Click "New Run" to evaluate a model on this puzzle
+            Click &quot;New Run&quot; to evaluate a model on this puzzle
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {runs.map((run) => (
-            <button
-              key={run.id}
-              onClick={() => viewRunDetails(run.id)}
-              className="w-full bg-white dark:bg-gray-900 border hover:border-blue-300 dark:hover:border-blue-700 rounded-xl p-4 shadow-sm transition-all text-left group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-bold text-lg">{run.modelName}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                      run.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      run.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                      run.status === 'failed' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {run.status}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center gap-1">
-                      <Trophy size={14} />
-                      <span>
-                        {run.accuracy !== null ? `${(run.accuracy * 100).toFixed(1)}%` : 'N/A'}
+        <div className="bg-white dark:bg-gray-900 border rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 dark:bg-gray-800/50">
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Model</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Strategy</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Status</th>
+                  <th
+                    className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 select-none"
+                    onClick={() => handleSort('accuracy')}
+                  >
+                    <span className="inline-flex items-center gap-1">Accuracy <SortIcon field="accuracy" /></span>
+                  </th>
+                  <th
+                    className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 select-none"
+                    onClick={() => handleSort('tokensUsed')}
+                  >
+                    <span className="inline-flex items-center gap-1">Tokens <SortIcon field="tokensUsed" /></span>
+                  </th>
+                  <th
+                    className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 select-none"
+                    onClick={() => handleSort('estimatedCost')}
+                  >
+                    <span className="inline-flex items-center gap-1">Est. Cost <SortIcon field="estimatedCost" /></span>
+                  </th>
+                  <th
+                    className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 select-none"
+                    onClick={() => handleSort('timeTakenMs')}
+                  >
+                    <span className="inline-flex items-center gap-1">Time <SortIcon field="timeTakenMs" /></span>
+                  </th>
+                  <th
+                    className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 select-none"
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    <span className="inline-flex items-center gap-1">Date <SortIcon field="createdAt" /></span>
+                  </th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRuns.map((run) => (
+                  <tr
+                    key={run.id}
+                    onClick={() => viewRunDetails(run.id)}
+                    className="border-b last:border-b-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3 font-medium">{run.modelName}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        run.strategy === 'code'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                      }`}>
+                        {run.strategy === 'code' ? 'Code' : 'Direct'}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Zap size={14} />
-                      <span>{run.tokensUsed?.toLocaleString() || 'N/A'} tokens</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock size={14} />
-                      <span>{new Date(run.createdAt).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors" size={24} />
-              </div>
-
-              {run.status === 'running' && (
-                <div className="mt-3">
-                  <Loader2 className="animate-spin text-blue-600" size={20} />
-                </div>
-              )}
-            </button>
-          ))}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        run.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        run.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                        run.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {run.status === 'running' && <Loader2 className="inline animate-spin mr-1" size={12} />}
+                        {run.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      {run.accuracy !== null ? `${(run.accuracy * 100).toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {run.tokensUsed?.toLocaleString() || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {formatCost(run.estimatedCost)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {run.timeTakenMs ? `${(run.timeTakenMs / 1000).toFixed(1)}s` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                      {new Date(run.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ChevronRight className="text-gray-400" size={18} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

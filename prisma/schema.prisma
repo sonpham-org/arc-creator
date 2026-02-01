@@ -60,23 +60,26 @@ model Feedback {
 }
 
 model ModelRun {
-  id           String            @id @default(cuid())
-  generationId String
-  modelName    String
-  provider     String
-  status       String            @default("pending")
-  reasoning    String?
-  correctCount Int               @default(0)
-  totalCount   Int               @default(0)
-  accuracy     Float?
-  tokensUsed   Int?
-  timeTakenMs  Int?
-  errorMessage String?
-  metadata     Json?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  predictions  ModelPrediction[]
-  generation   Generation        @relation(fields: [generationId], references: [id])
+  id            String            @id @default(cuid())
+  generationId  String
+  modelName     String
+  provider      String
+  status        String            @default("pending")
+  strategy      String            @default("direct")
+  reasoning     String?
+  correctCount  Int               @default(0)
+  totalCount    Int               @default(0)
+  accuracy      Float?
+  tokensUsed    Int?
+  timeTakenMs   Int?
+  estimatedCost Float?
+  errorMessage  String?
+  generatedCode String?           @db.Text
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  predictions   ModelPrediction[]
+  generation    Generation        @relation(fields: [generationId], references: [id])
 
   @@index([generationId])
   @@index([modelName])

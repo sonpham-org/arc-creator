@@ -5,7 +5,7 @@ import { generatePuzzleId } from '@/lib/puzzleId';
 
 export async function POST(req: NextRequest) {
   try {
-    const { idea, apiKey: providedApiKey, model, jobId } = await req.json();
+    const { idea, apiKey: providedApiKey, model, jobId, tags: requestTags } = await req.json();
 
     if (!idea) {
       return NextResponse.json({ error: 'Missing idea' }, { status: 400 });
@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
           id: puzzleId,
           idea: idea,
           source: 'generated',
+          tags: Array.isArray(requestTags) ? requestTags : [],
           jobId: jobId || null,
         },
       });

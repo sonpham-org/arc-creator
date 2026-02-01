@@ -39,7 +39,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { modelName, provider, apiKey, temperature = 0.7, maxTokens = 4000 } = body;
+    const { modelName, provider, apiKey, temperature = 0.7, maxTokens = 4000, strategy = 'direct' } = body;
 
     if (!modelName || !provider || !apiKey) {
       return NextResponse.json(
@@ -54,6 +54,7 @@ export async function POST(
         generationId: id,
         modelName,
         provider,
+        strategy,
         status: 'pending',
         metadata: { temperature, maxTokens },
       },

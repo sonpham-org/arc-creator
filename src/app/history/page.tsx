@@ -97,14 +97,19 @@ export default function HistoryPage() {
             <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               {primaryTags.map(({ tag, count }) => {
                 const isActive = selectedTags.includes(tag);
+                const isAgent = tag === 'agent';
                 return (
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
                     className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                       isActive
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                        ? isAgent
+                          ? 'bg-yellow-500 text-white border-yellow-500'
+                          : 'bg-blue-500 text-white border-blue-500'
+                        : isAgent
+                          ? 'bg-white dark:bg-gray-900 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700 hover:border-yellow-400'
+                          : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
                     }`}
                   >
                     {tag} <span className="opacity-60">{count}</span>
@@ -133,13 +138,16 @@ export default function HistoryPage() {
                       <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-900 border rounded-lg shadow-lg p-2 min-w-[200px] max-h-[300px] overflow-y-auto">
                         {minorTags.map(({ tag, count }) => {
                           const isActive = selectedTags.includes(tag);
+                          const isAgent = tag === 'agent';
                           return (
                             <button
                               key={tag}
                               onClick={() => toggleTag(tag)}
                               className={`w-full text-left text-xs px-3 py-1.5 rounded transition-colors flex items-center justify-between gap-3 ${
                                 isActive
-                                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                                  ? isAgent
+                                    ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                    : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                               }`}
                             >
@@ -229,7 +237,11 @@ export default function HistoryPage() {
                 {p.tags && p.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {p.tags.map((tag: string) => (
-                      <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
+                      <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                        tag === 'agent'
+                          ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800'
+                          : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border-blue-100 dark:border-blue-800'
+                      }`}>
                         {tag}
                       </span>
                     ))}

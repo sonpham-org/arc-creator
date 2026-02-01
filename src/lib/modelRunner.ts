@@ -1,12 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from './prisma';
 import { callLLM, getServerApiKey, type LLMProvider } from './llm';
+import { estimateCost } from './pricing';
+import { executeTransformCode } from './codeExecutor';
 
 interface ModelRunWithGeneration {
   id: string;
   generationId: string;
   modelName: string;
   provider: string;
+  strategy: string;
   metadata: any;
   generation: {
     pairs: Array<{
@@ -35,16 +38,20 @@ export async function executeModelRun(
       throw new Error('No test cases found for this generation');
     }
 
+    const strategy = modelRun.strategy || 'direct';
+
     // Build the prompt
-    const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildUserPrompt(trainingPairs, testPairs);
+    const systemPrompt = buildSystemPrompt(strategy);
+    const userPrompt = buildUserPrompt(trainingPairs, testPairs, strategy);
 
     let reasoning = '';
     let predictions: any[] = [];
+    let generatedCode: string | null = null;
 
     const provider = modelRun.provider as LLMProvider;
 
     // Use Anthropic SDK directly for anthropic (needs special handling for max_tokens)
+    let rawResponseText: string;
     if (provider === 'anthropic') {
       const anthropic = new Anthropic({ apiKey });
       const response = await anthropic.messages.create({
@@ -55,17 +62,37 @@ export async function executeModelRun(
       });
       const content = response.content[0];
       if (content.type !== 'text') throw new Error('Unexpected response type from Anthropic');
-      const result = parseModelResponse(content.text);
-      reasoning = result.reasoning;
-      predictions = result.predictions;
+      rawResponseText = content.text;
       totalTokens = response.usage.input_tokens + response.usage.output_tokens;
     } else {
       // All other providers go through unified callLLM
       const result = await callLLM(provider, apiKey, systemPrompt, userPrompt, modelRun.modelName);
-      const parsed = parseModelResponse(result.content);
-      reasoning = parsed.reasoning;
-      predictions = parsed.predictions;
+      rawResponseText = result.content;
       totalTokens = result.tokensUsed;
+    }
+
+    if (strategy === 'code') {
+      // Parse code from response
+      const parsed = parseCodeResponse(rawResponseText);
+      reasoning = parsed.reasoning;
+      generatedCode = parsed.code;
+
+      // Execute code for each test input
+      for (const testPair of testPairs) {
+        const result = await executeTransformCode(parsed.code, testPair.input);
+        if (result.success && result.output) {
+          predictions.push(result.output);
+        } else {
+          // Store an empty grid as the prediction so scoring can still happen
+          predictions.push([]);
+          reasoning += `\n\n[Execution error for test case: ${result.error}]`;
+        }
+      }
+    } else {
+      // Direct strategy: parse predictions from JSON
+      const result = parseModelResponse(rawResponseText);
+      reasoning = result.reasoning;
+      predictions = result.predictions;
     }
 
     // Validate predictions
@@ -95,6 +122,7 @@ export async function executeModelRun(
     // Update the model run with results
     const accuracy = correctCount / testPairs.length;
     const timeTakenMs = Date.now() - startTime;
+    const cost = estimateCost(modelRun.provider, modelRun.modelName, totalTokens);
 
     await prisma.$transaction([
       // Create all predictions
@@ -112,6 +140,8 @@ export async function executeModelRun(
           accuracy,
           tokensUsed: totalTokens,
           timeTakenMs,
+          estimatedCost: cost,
+          generatedCode,
         },
       }),
     ]);
@@ -132,7 +162,32 @@ export async function executeModelRun(
   }
 }
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(strategy: string): string {
+  if (strategy === 'code') {
+    return `You are an expert at solving ARC (Abstraction and Reasoning Corpus) puzzles by writing Python code.
+
+Each grid is represented as a 2D list of integers (0-9), where each number represents a color:
+- 0: black (background), 1: blue, 2: red, 3: green, 4: yellow
+- 5: gray, 6: pink, 7: orange, 8: cyan, 9: brown
+
+You will be given training examples showing input-output pairs. Your task is to:
+1. Analyze the transformation pattern
+2. Write a Python function \`transform(grid)\` that takes a 2D list and returns a 2D list
+
+Respond with ONLY a JSON object in this format:
+{
+  "reasoning": "Your explanation of the pattern",
+  "code": "def transform(grid):\\n    # your code here\\n    return result"
+}
+
+Important:
+- The function must be named exactly \`transform\` and accept a single argument (2D list)
+- Return a 2D list of integers
+- Do not use any external libraries (no numpy, scipy, etc.)
+- Keep the code self-contained`;
+  }
+
+  // Default: direct strategy
   return `You are an expert at solving ARC (Abstraction and Reasoning Corpus) puzzles. These puzzles involve finding patterns in grids of colored cells.
 
 Each grid is represented as a 2D array where each cell contains a number from 0-9, representing different colors:
@@ -160,7 +215,8 @@ Respond with ONLY a JSON object in this format:
 
 function buildUserPrompt(
   trainingPairs: any[],
-  testPairs: any[]
+  testPairs: any[],
+  strategy: string
 ): string {
   let prompt = '## Training Examples:\n\n';
 
@@ -177,9 +233,51 @@ function buildUserPrompt(
     prompt += `Input:\n${JSON.stringify(pair.input)}\n\n`;
   });
 
-  prompt += `Respond with a JSON object containing "reasoning" and "predictions" (array of ${testPairs.length} grid(s)).`;
+  if (strategy === 'code') {
+    prompt += `Write a Python \`transform(grid)\` function that implements the pattern. Respond with a JSON object containing "reasoning" and "code".`;
+  } else {
+    prompt += `Respond with a JSON object containing "reasoning" and "predictions" (array of ${testPairs.length} grid(s)).`;
+  }
 
   return prompt;
+}
+
+/**
+ * Parse a "code" strategy response: expects { reasoning, code }
+ */
+function parseCodeResponse(text: string): {
+  reasoning: string;
+  code: string;
+} {
+  let jsonText = text.trim();
+  const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+  if (jsonMatch) {
+    jsonText = jsonMatch[1];
+  }
+
+  if (!jsonText.startsWith('{')) {
+    const objMatch = jsonText.match(/\{[\s\S]*"code"[\s\S]*\}/);
+    if (objMatch) {
+      jsonText = objMatch[0];
+    }
+  }
+
+  const parsed = JSON.parse(jsonText);
+
+  if (typeof parsed.code !== 'string') {
+    throw new Error('Invalid response format: missing code string');
+  }
+
+  // Unescape the code (it may have \\n instead of real newlines)
+  let code = parsed.code;
+  if (!code.includes('\n') && code.includes('\\n')) {
+    code = code.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+  }
+
+  return {
+    reasoning: parsed.reasoning || '',
+    code,
+  };
 }
 
 export function parseModelResponse(text: string): {
