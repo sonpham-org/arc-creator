@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, Clock, Hash, Tag } from 'lucide-react';
+import { Loader2, ArrowRight, Clock, Hash, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import ArcGrid from '@/components/ArcGrid';
+
+const PUZZLES_PER_PAGE = 12;
 
 export default function HistoryPage() {
   const [puzzles, setPuzzles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetch('/api/puzzles')
@@ -20,6 +23,11 @@ export default function HistoryPage() {
 
   if (loading) return <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
 
+  const totalPages = Math.ceil(puzzles.length / PUZZLES_PER_PAGE);
+  const startIdx = (currentPage - 1) * PUZZLES_PER_PAGE;
+  const endIdx = startIdx + PUZZLES_PER_PAGE;
+  const currentPuzzles = puzzles.slice(startIdx, endIdx);
+
   return (
     <div className="space-y-8">
       <div>
@@ -28,7 +36,7 @@ export default function HistoryPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {puzzles.map((p) => {
+        {currentPuzzles.map((p) => {
           const firstPair = p.generations?.[0]?.pairs?.[0];
           const inputGrid = firstPair?.input;
           const outputGrid = firstPair?.output;
@@ -105,6 +113,60 @@ export default function HistoryPage() {
             No puzzles found. Create your first one to get started!
           </div>
         )}
+      </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-8">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="p-2 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+              // Show first page, last page, current page, and pages around current
+              const showPage = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+              const showEllipsis = (page === 2 && currentPage > 3) || (page === totalPages - 1 && currentPage < totalPages - 2);
+              
+              if (showEllipsis) {
+                return <span key={page} className="px-2 text-gray-400">...</span>;
+              }
+              
+              if (!showPage) return null;
+              
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`min-w-[40px] h-10 rounded-lg border transition-colors ${
+                    currentPage === page 
+                      ? 'bg-blue-500 text-white border-blue-500' 
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {page}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
+
+      {/* Showing X of Y puzzles */}
+      <div className="text-center text-sm text-gray-500 mt-4">
+        Showing {startIdx + 1}-{Math.min(endIdx, puzzles.length)} of {puzzles.length} puzzles
       </div>
     </div>
   );

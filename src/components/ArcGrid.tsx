@@ -32,35 +32,51 @@ interface ArcGridProps {
 export default function ArcGrid({ grid, onCellClick, editable, selectedColor, cellSize = 'md' }: ArcGridProps) {
   if (!grid || grid.length === 0) return null;
 
-  const sizeClasses = {
-    xs: "w-2 h-2",
-    sm: "w-4 h-4",
-    md: "w-8 h-8",
-    lg: "w-12 h-12",
+  const sizeMap = {
+    xs: 8,
+    sm: 16,
+    md: 32,
+    lg: 48,
   };
+
+  const cellPx = sizeMap[cellSize];
+  const rows = grid.length;
+  const cols = grid[0].length;
 
   return (
     <div 
-      className="inline-grid gap-px border border-gray-700 bg-gray-700" 
+      className="inline-block border-2 border-gray-900" 
       style={{ 
-        gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
-        width: 'fit-content'
+        width: `${cols * cellPx}px`,
+        height: `${rows * cellPx}px`,
       }}
     >
-      {grid.map((row, r) => (
-        row.map((cell, c) => (
-          <div
-            key={`${r}-${c}`}
-            className={cn(
-              sizeClasses[cellSize],
-              "transition-colors aspect-square",
-              editable && "cursor-pointer",
-              ARC_COLORS[cell] || 'bg-white'
-            )}
-            onClick={() => editable && onCellClick?.(r, c)}
-          />
-        ))
-      ))}
+      <div 
+        className="relative w-full h-full"
+        style={{ 
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, ${cellPx}px)`,
+          gridTemplateRows: `repeat(${rows}, ${cellPx}px)`,
+        }}
+      >
+        {grid.map((row, r) => (
+          row.map((cell, c) => (
+            <div
+              key={`${r}-${c}`}
+              className={cn(
+                "transition-colors border border-gray-900",
+                editable && "cursor-pointer hover:opacity-80",
+                ARC_COLORS[cell] || 'bg-white'
+              )}
+              style={{
+                width: `${cellPx}px`,
+                height: `${cellPx}px`,
+              }}
+              onClick={() => editable && onCellClick?.(r, c)}
+            />
+          ))
+        ))}
+      </div>
     </div>
   );
 }
