@@ -121,6 +121,28 @@ model Job {
   @@index([createdAt])
 }
 
+model EvaluationJob {
+  id           String   @id @default(cuid())
+  puzzleId     String
+  generationId String
+  provider     String   // gemini, groq, mistral, cerebras, openrouter
+  model        String   // e.g. llama-3.3-70b-versatile
+  status       String   @default("queued") // queued, running, completed, failed, skipped
+  priority     Int      @default(1) // 1=cheap first pass, 2=expensive second pass
+  attempts     Int      @default(0)
+  maxAttempts  Int      @default(3)
+  lastError    String?
+  modelRunId   String?  // links to the ModelRun once created
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+
+  @@unique([generationId, provider, model])
+  @@index([status, priority])
+  @@index([provider, status])
+  @@index([puzzleId])
+}
+
 model Rating {
   id              String   @id @default(cuid())
   puzzleId        String

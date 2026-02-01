@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
 import { prisma } from './prisma';
+import { callLLM, getServerApiKey, type LLMProvider } from './llm';
 
 interface ModelRunWithGeneration {
   id: string;
@@ -36,34 +36,36 @@ export async function executeModelRun(
     }
 
     // Build the prompt
-    const prompt = buildARCPrompt(trainingPairs, testPairs);
+    const systemPrompt = buildSystemPrompt();
+    const userPrompt = buildUserPrompt(trainingPairs, testPairs);
 
-    // Call the model based on provider
     let reasoning = '';
     let predictions: any[] = [];
-    
-    if (modelRun.provider === 'anthropic') {
-      const result = await callAnthropic(
-        apiKey,
-        modelRun.modelName,
-        prompt,
-        modelRun.metadata
-      );
+
+    const provider = modelRun.provider as LLMProvider;
+
+    // Use Anthropic SDK directly for anthropic (needs special handling for max_tokens)
+    if (provider === 'anthropic') {
+      const anthropic = new Anthropic({ apiKey });
+      const response = await anthropic.messages.create({
+        model: modelRun.modelName,
+        max_tokens: modelRun.metadata?.maxTokens || 4000,
+        temperature: modelRun.metadata?.temperature || 0.7,
+        messages: [{ role: 'user', content: systemPrompt + '\n\n' + userPrompt }],
+      });
+      const content = response.content[0];
+      if (content.type !== 'text') throw new Error('Unexpected response type from Anthropic');
+      const result = parseModelResponse(content.text);
       reasoning = result.reasoning;
       predictions = result.predictions;
-      totalTokens = result.tokensUsed;
-    } else if (modelRun.provider === 'openai') {
-      const result = await callOpenAI(
-        apiKey,
-        modelRun.modelName,
-        prompt,
-        modelRun.metadata
-      );
-      reasoning = result.reasoning;
-      predictions = result.predictions;
-      totalTokens = result.tokensUsed;
+      totalTokens = response.usage.input_tokens + response.usage.output_tokens;
     } else {
-      throw new Error(`Unsupported provider: ${modelRun.provider}`);
+      // All other providers go through unified callLLM
+      const result = await callLLM(provider, apiKey, systemPrompt, userPrompt, modelRun.modelName);
+      const parsed = parseModelResponse(result.content);
+      reasoning = parsed.reasoning;
+      predictions = parsed.predictions;
+      totalTokens = result.tokensUsed;
     }
 
     // Validate predictions
@@ -78,7 +80,7 @@ export async function executeModelRun(
     const predictionRecords = testPairs.map((testPair, idx) => {
       const predicted = predictions[idx];
       const isCorrect = gridsEqual(predicted, testPair.output);
-      
+
       if (isCorrect) correctCount++;
 
       return {
@@ -114,7 +116,7 @@ export async function executeModelRun(
       }),
     ]);
 
-    return { success: true };
+    return { success: true, accuracy };
   } catch (error: any) {
     // Update run as failed
     await prisma.modelRun.update({
@@ -130,11 +132,8 @@ export async function executeModelRun(
   }
 }
 
-function buildARCPrompt(
-  trainingPairs: any[],
-  testPairs: any[]
-): string {
-  let prompt = `You are an expert at solving ARC (Abstraction and Reasoning Corpus) puzzles. These puzzles involve finding patterns in grids of colored cells.
+function buildSystemPrompt(): string {
+  return `You are an expert at solving ARC (Abstraction and Reasoning Corpus) puzzles. These puzzles involve finding patterns in grids of colored cells.
 
 Each grid is represented as a 2D array where each cell contains a number from 0-9, representing different colors:
 - 0: black (background)
@@ -152,114 +151,38 @@ You will be given several training examples showing input-output pairs. Your tas
 1. Analyze the pattern that transforms inputs to outputs
 2. Apply that pattern to solve test inputs
 
-## Training Examples:
+Respond with ONLY a JSON object in this format:
+{
+  "reasoning": "Your explanation of the pattern",
+  "predictions": [[[output grid for test 1]], ...]
+}`;
+}
 
-`;
+function buildUserPrompt(
+  trainingPairs: any[],
+  testPairs: any[]
+): string {
+  let prompt = '## Training Examples:\n\n';
 
   trainingPairs.forEach((pair, idx) => {
     prompt += `### Example ${idx + 1}:\n`;
-    prompt += `Input:\n${JSON.stringify(pair.input, null, 2)}\n\n`;
-    prompt += `Output:\n${JSON.stringify(pair.output, null, 2)}\n\n`;
+    prompt += `Input:\n${JSON.stringify(pair.input)}\n\n`;
+    prompt += `Output:\n${JSON.stringify(pair.output)}\n\n`;
   });
 
-  prompt += `## Test Cases:
-
-Now apply the pattern you discovered to solve these test inputs:
-
-`;
+  prompt += `## Test Cases:\n\n`;
 
   testPairs.forEach((pair, idx) => {
     prompt += `### Test ${idx + 1}:\n`;
-    prompt += `Input:\n${JSON.stringify(pair.input, null, 2)}\n\n`;
+    prompt += `Input:\n${JSON.stringify(pair.input)}\n\n`;
   });
 
-  prompt += `Please respond with a JSON object in the following format:
-{
-  "reasoning": "Your detailed explanation of the pattern you discovered and how you applied it",
-  "predictions": [
-    [[output grid for test 1]],
-    [[output grid for test 2]],
-    ...
-  ]
-}
-
-Make sure your predictions array contains exactly ${testPairs.length} grid(s).`;
+  prompt += `Respond with a JSON object containing "reasoning" and "predictions" (array of ${testPairs.length} grid(s)).`;
 
   return prompt;
 }
 
-async function callAnthropic(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  metadata: any
-) {
-  const anthropic = new Anthropic({ apiKey });
-
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: metadata.maxTokens || 4000,
-    temperature: metadata.temperature || 0.7,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
-
-  const content = response.content[0];
-  if (content.type !== 'text') {
-    throw new Error('Unexpected response type from Anthropic');
-  }
-
-  // Parse the JSON response
-  const result = parseModelResponse(content.text);
-
-  return {
-    reasoning: result.reasoning,
-    predictions: result.predictions,
-    tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
-  };
-}
-
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  metadata: any
-) {
-  const openai = new OpenAI({ apiKey });
-
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    temperature: metadata.temperature || 0.7,
-    max_tokens: metadata.maxTokens || 4000,
-    response_format: { type: 'json_object' },
-  });
-
-  const content = response.choices[0].message.content;
-  if (!content) {
-    throw new Error('No content in OpenAI response');
-  }
-
-  // Parse the JSON response
-  const result = parseModelResponse(content);
-
-  return {
-    reasoning: result.reasoning,
-    predictions: result.predictions,
-    tokensUsed: response.usage?.total_tokens || 0,
-  };
-}
-
-function parseModelResponse(text: string): {
+export function parseModelResponse(text: string): {
   reasoning: string;
   predictions: any[];
 } {
@@ -270,14 +193,22 @@ function parseModelResponse(text: string): {
     jsonText = jsonMatch[1];
   }
 
+  // Also try to find a JSON object if the model wrapped it in other text
+  if (!jsonText.startsWith('{')) {
+    const objMatch = jsonText.match(/\{[\s\S]*"predictions"[\s\S]*\}/);
+    if (objMatch) {
+      jsonText = objMatch[0];
+    }
+  }
+
   const parsed = JSON.parse(jsonText);
-  
-  if (!parsed.reasoning || !Array.isArray(parsed.predictions)) {
-    throw new Error('Invalid response format: missing reasoning or predictions');
+
+  if (!Array.isArray(parsed.predictions)) {
+    throw new Error('Invalid response format: missing predictions array');
   }
 
   return {
-    reasoning: parsed.reasoning,
+    reasoning: parsed.reasoning || '',
     predictions: parsed.predictions,
   };
 }

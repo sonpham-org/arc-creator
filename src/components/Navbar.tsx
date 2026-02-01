@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PlusCircle, List, Settings, Cpu, Briefcase } from 'lucide-react';
+import { PlusCircle, List, Settings, Cpu, Briefcase, Shield } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext';
 import { detectProvider } from '@/lib/llm';
 
@@ -11,6 +11,11 @@ export default function Navbar() {
   const pathname = usePathname();
   const { apiKey, setApiKey } = useSettings();
   const provider = detectProvider(apiKey);
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsAdmin(!!localStorage.getItem('arc_admin_key'));
+  }, []);
 
   return (
     <nav className="border-b bg-white dark:bg-gray-950 px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -37,6 +42,14 @@ export default function Navbar() {
           >
             <Briefcase size={16} /> Generation Jobs
           </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/evaluation"
+              className={`flex items-center gap-1 text-sm font-medium ${pathname === '/admin/evaluation' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+            >
+              <Shield size={16} /> Eval Admin
+            </Link>
+          )}
         </div>
       </div>
       
