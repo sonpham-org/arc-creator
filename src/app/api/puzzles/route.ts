@@ -180,6 +180,17 @@ export async function GET() {
   const puzzles = await prisma.puzzle.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
+      generations: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: {
+          pairs: {
+            where: { isTestCase: false },
+            orderBy: { order: 'asc' },
+            take: 1
+          }
+        }
+      },
       _count: {
         select: { generations: true }
       }
