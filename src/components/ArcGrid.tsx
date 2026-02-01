@@ -45,7 +45,7 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
 
   return (
     <div
-      className="inline-block border-2 border-gray-500"
+      className="inline-block border-2 border-gray-700"
     >
       <div
         style={{
@@ -59,7 +59,7 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
             <div
               key={`${r}-${c}`}
               className={cn(
-                "transition-colors border border-gray-500",
+                "transition-colors border border-gray-700",
                 editable && "cursor-pointer hover:opacity-80",
                 ARC_COLORS[cell] || 'bg-white'
               )}
