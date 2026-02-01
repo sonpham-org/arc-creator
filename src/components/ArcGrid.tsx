@@ -33,10 +33,10 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
   if (!grid || grid.length === 0) return null;
 
   const sizeClasses = {
-    xs: "w-1 h-1 sm:w-2 sm:h-2",
-    sm: "w-3 h-3 sm:w-4 sm:h-4",
-    md: "w-6 h-6 sm:w-8 sm:h-8",
-    lg: "w-10 h-10 sm:w-12 sm:h-12",
+    xs: "w-2 h-2",
+    sm: "w-4 h-4",
+    md: "w-8 h-8",
+    lg: "w-12 h-12",
   };
 
   return (
@@ -53,11 +53,11 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
             key={`${r}-${c}`}
             className={cn(
               sizeClasses[cellSize],
-              "transition-colors",
+              "transition-colors aspect-square",
               editable && "cursor-pointer",
               ARC_COLORS[cell] || 'bg-white'
             )}
-            onClick={() => onCellClick?.(r, c)}
+            onClick={() => editable && onCellClick?.(r, c)}
           />
         ))
       ))}
