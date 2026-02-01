@@ -20,22 +20,51 @@ from typing import Dict, Any
 
 
 def load_arc_dataset(data_dir: Path, year: str, split: str) -> Dict[str, Any]:
-    """Load ARC dataset from JSON file."""
+    """Load ARC dataset from JSON file and merge with solutions."""
     filename_map = {
         'training': f'arc-agi_training_challenges.json',
         'evaluation': f'arc-agi_evaluation_challenges.json',
         'test': f'arc-agi_test_challenges.json',
     }
     
-    file_path = data_dir / f'arc-{year}' / filename_map[split]
+    solution_map = {
+        'training': f'arc-agi_training_solutions.json',
+        'evaluation': f'arc-agi_evaluation_solutions.json',
+        'test': None,  # Test sets don't have solutions
+    }
     
-    if not file_path.exists():
-        raise FileNotFoundError(f"Dataset file not found: {file_path}")
+    challenges_path = data_dir / f'arc-{year}' / filename_map[split]
+    solutions_path = data_dir / f'arc-{year}' / solution_map[split] if solution_map[split] else None
     
-    print(f"📂 Loading dataset from: {file_path}")
+    if not challenges_path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {challenges_path}")
     
-    with open(file_path, 'r') as f:
-        return json.load(f)
+    print(f"📂 Loading challenges from: {challenges_path}")
+    
+    with open(challenges_path, 'r') as f:
+        challenges = json.load(f)
+    
+    # Load solutions if available
+    solutions = {}
+    if solutions_path and solutions_path.exists():
+        print(f"📂 Loading solutions from: {solutions_path}")
+        with open(solutions_path, 'r') as f:
+            solutions = json.load(f)
+    
+    # Merge test outputs from solutions into challenges
+    for puzzle_id, puzzle_data in challenges.items():
+        if puzzle_id in solutions:
+            # Merge test outputs
+            test_cases = puzzle_data.get('test', [])
+            test_solutions = solutions[puzzle_id]
+            
+            for i, test_case in enumerate(test_cases):
+                if i < len(test_solutions):
+                    test_case['output'] = test_solutions[i]
+            
+            print(f"✓ Merged {len(test_solutions)} test solutions for {puzzle_id}")
+    
+    return challenges
 
 
 def import_puzzles(server_url: str, admin_key: str, source: str, puzzles: Dict[str, Any], limit: int = None):

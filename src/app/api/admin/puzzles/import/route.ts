@@ -79,8 +79,11 @@ export async function POST(req: NextRequest) {
         // Create the idea/description from source
         const idea = arcId;  // Just use the ID
 
-        // Extract tags from source (e.g., "arc-2024-training" → ["arc-2024", "training"])
-        const tags = source.split('-').filter(Boolean);
+        // Extract tags from source (e.g., "arc-2024-training" → ["ARC-AGI 2024", "training"])
+        const parts = source.split('-');
+        const year = parts[1]; // e.g., "2024"
+        const split = parts.slice(2).join('-'); // e.g., "training"
+        const tags = [`ARC-AGI ${year}`, split];
         
         // Prepare pairs with proper ordering and test designation
         const allPairs = [
