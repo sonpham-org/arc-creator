@@ -29,7 +29,9 @@ export default function HistoryPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {puzzles.map((p) => {
-          const firstGrid = p.generations?.[0]?.pairs?.[0]?.input;
+          const firstPair = p.generations?.[0]?.pairs?.[0];
+          const inputGrid = firstPair?.input;
+          const outputGrid = firstPair?.output;
           
           return (
             <Link 
@@ -38,10 +40,24 @@ export default function HistoryPage() {
               className="group block bg-white dark:bg-gray-900 border rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all overflow-hidden flex flex-col"
             >
               {/* Thumbnail Area */}
-              <div className="h-40 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-center p-4 border-b group-hover:bg-blue-50/30 dark:group-hover:bg-blue-900/10 transition-colors">
-                {firstGrid ? (
-                  <div className="scale-75 origin-center">
-                    <ArcGrid grid={firstGrid} cellSize="sm" />
+              <div className="h-40 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-center border-b group-hover:bg-blue-50/30 dark:group-hover:bg-blue-900/10 transition-colors overflow-hidden">
+                {inputGrid ? (
+                  <div className="flex items-center justify-center gap-2 h-full w-full p-2">
+                    <div className="flex-1 flex items-center justify-center min-w-0 max-h-full">
+                      <div className="max-w-full max-h-full overflow-hidden flex items-center justify-center">
+                        <ArcGrid grid={inputGrid} cellSize="xs" />
+                      </div>
+                    </div>
+                    {outputGrid && (
+                      <>
+                        <ArrowRight size={16} className="text-gray-400 shrink-0" />
+                        <div className="flex-1 flex items-center justify-center min-w-0 max-h-full">
+                          <div className="max-w-full max-h-full overflow-hidden flex items-center justify-center">
+                            <ArcGrid grid={outputGrid} cellSize="xs" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-gray-400">
