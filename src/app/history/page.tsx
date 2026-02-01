@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, Clock, Hash, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Loader2, ArrowRight, Clock, Hash, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
 import ArcGrid from '@/components/ArcGrid';
 
 const PUZZLES_PER_PAGE = 30;
@@ -15,6 +15,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTags, setSelectedTags] = useState<string[]>(DEFAULT_TAGS);
+  const [moreTagsOpen, setMoreTagsOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/puzzles')
@@ -87,37 +88,88 @@ export default function HistoryPage() {
         </div>
 
         {/* Tag Filter - top right */}
-        <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
-          {tagsWithCounts.map(({ tag, count }) => {
-            const isActive = selectedTags.includes(tag);
-            return (
+        {(() => {
+          const primaryTags = tagsWithCounts.filter(t => t.count >= 100);
+          const minorTags = tagsWithCounts.filter(t => t.count < 100);
+          const activeMinorCount = minorTags.filter(t => selectedTags.includes(t.tag)).length;
+
+          return (
+            <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+              {primaryTags.map(({ tag, count }) => {
+                const isActive = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      isActive
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                    }`}
+                  >
+                    {tag} <span className="opacity-60">{count}</span>
+                  </button>
+                );
+              })}
+
+              {/* More tags dropdown */}
+              {minorTags.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setMoreTagsOpen(prev => !prev)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+                      activeMinorCount > 0
+                        ? 'bg-blue-100 text-blue-600 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700'
+                        : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                    }`}
+                  >
+                    More{activeMinorCount > 0 && ` (${activeMinorCount})`}
+                    <ChevronDown size={12} className={`transition-transform ${moreTagsOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {moreTagsOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setMoreTagsOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-900 border rounded-lg shadow-lg p-2 min-w-[200px] max-h-[300px] overflow-y-auto">
+                        {minorTags.map(({ tag, count }) => {
+                          const isActive = selectedTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              onClick={() => toggleTag(tag)}
+                              className={`w-full text-left text-xs px-3 py-1.5 rounded transition-colors flex items-center justify-between gap-3 ${
+                                isActive
+                                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }`}
+                            >
+                              <span>{tag}</span>
+                              <span className="text-gray-400 tabular-nums">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <span className="text-gray-300 dark:text-gray-600 mx-0.5">|</span>
               <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  isActive
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
-                }`}
+                onClick={selectAll}
+                className="text-xs px-2 py-1 text-blue-500 hover:text-blue-700 transition-colors"
               >
-                {tag} <span className="opacity-60">{count}</span>
+                All
               </button>
-            );
-          })}
-          <span className="text-gray-300 dark:text-gray-600 mx-0.5">|</span>
-          <button
-            onClick={selectAll}
-            className="text-xs px-2 py-1 text-blue-500 hover:text-blue-700 transition-colors"
-          >
-            All
-          </button>
-          <button
-            onClick={clearTags}
-            className="text-xs px-2 py-1 text-gray-400 hover:text-red-500 transition-colors"
-          >
-            None
-          </button>
-        </div>
+              <button
+                onClick={clearTags}
+                className="text-xs px-2 py-1 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                None
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
