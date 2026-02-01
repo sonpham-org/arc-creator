@@ -72,9 +72,6 @@ export default function HistoryPage() {
                   <h2 className="text-lg font-bold group-hover:text-blue-600 transition-colors truncate">
                     {p.idea}
                   </h2>
-                  <span className="text-[10px] font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-gray-400 shrink-0">
-                    {p.id.slice(0, 8)}
-                  </span>
                 </div>
                 
                 {/* Tags */}
