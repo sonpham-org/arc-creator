@@ -9,14 +9,29 @@ import { getServerApiKey, type LLMProvider } from '@/lib/llm';
  * Smart job that analyzes existing evaluation coverage and queues what's missing.
  *
  * Strategy:
- * 1. Find all generations with test cases
- * 2. Check which (generation, provider, model) combos already have results
- * 3. For generations with NO evaluations at all → queue cheap models (priority 1)
- * 4. For generations where ALL cheap models scored 0% → queue expensive models (priority 2)
+ * 1. Prioritize puzzles by tag: ARC-AGI 2024 → ARC-AGI 2025 → everything else
+ * 2. For each puzzle, check which models have already been evaluated
+ * 3. Queue cheap models first (priority 1)
+ * 4. Queue expensive models only for puzzles where all cheap models scored 0% (priority 2)
  * 5. Never re-queue completed or already-queued combos
  *
- * Body: { adminKey: string, maxToQueue?: number }
+ * Body: {
+ *   adminKey: string,
+ *   maxToQueue?: number,        // default 500
+ *   tags?: string[],            // filter to specific tags (default: all, sorted by priority)
+ *   onlyPriority?: 1 | 2,      // only queue this priority level
+ * }
  */
+
+// Tag priority order - lower index = higher priority
+const TAG_PRIORITY = [
+  'ARC-AGI 2024',
+  'ARC-AGI 2025',
+  'ConceptARC',
+  'training',
+  'evaluation',
+  'Community',
+];
 
 const CHEAP_MODELS: { provider: LLMProvider; model: string }[] = [
   { provider: 'groq', model: 'llama-3.3-70b-versatile' },
@@ -30,10 +45,17 @@ const EXPENSIVE_MODELS: { provider: LLMProvider; model: string }[] = [
   { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
 ];
 
+function getTagPriority(tags: string[]): number {
+  for (let i = 0; i < TAG_PRIORITY.length; i++) {
+    if (tags.includes(TAG_PRIORITY[i])) return i;
+  }
+  return TAG_PRIORITY.length; // lowest priority for unrecognized tags
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { adminKey, maxToQueue = 500 } = body;
+    const { adminKey, maxToQueue = 500, tags, onlyPriority } = body;
 
     if (!verifyAdminKey(adminKey)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -50,10 +72,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get all generations with test cases
+    // Build puzzle filter
+    const puzzleWhere: any = {};
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      puzzleWhere.tags = { hasSome: tags };
+    }
+
+    // Get all generations with test cases, include puzzle tags for sorting
     const generations = await prisma.generation.findMany({
-      where: { pairs: { some: { isTestCase: true } } },
-      select: { id: true, puzzleId: true },
+      where: {
+        pairs: { some: { isTestCase: true } },
+        puzzle: puzzleWhere,
+      },
+      select: {
+        id: true,
+        puzzleId: true,
+        puzzle: { select: { tags: true } },
+      },
+    });
+
+    // Sort by tag priority: ARC-AGI 2024 first, then 2025, then others
+    generations.sort((a, b) => {
+      return getTagPriority(a.puzzle.tags) - getTagPriority(b.puzzle.tags);
     });
 
     // Get all existing evaluation jobs and completed model runs
@@ -100,6 +140,7 @@ export async function POST(req: NextRequest) {
 
     let queued = 0;
     let skippedExisting = 0;
+    const tagBreakdown: Record<string, number> = {};
 
     const toCreate: { puzzleId: string; generationId: string; provider: string; model: string; priority: number }[] = [];
 
@@ -108,9 +149,10 @@ export async function POST(req: NextRequest) {
 
       const bestAccuracy = genAccuracy.get(gen.id) ?? -1;
       const cheapEvalCount = genCheapEvals.get(gen.id) ?? 0;
+      const primaryTag = gen.puzzle.tags[0] || 'untagged';
 
       // Priority 1: Queue cheap models for generations with no/few evaluations
-      if (cheapEvalCount < availableCheap.length) {
+      if ((!onlyPriority || onlyPriority === 1) && cheapEvalCount < availableCheap.length) {
         for (const model of availableCheap) {
           if (queued >= maxToQueue) break;
           const key = jobKey(gen.id, model.provider, model.model);
@@ -126,12 +168,13 @@ export async function POST(req: NextRequest) {
             priority: 1,
           });
           existingSet.add(key);
+          tagBreakdown[primaryTag] = (tagBreakdown[primaryTag] || 0) + 1;
           queued++;
         }
       }
 
       // Priority 2: Queue expensive models only if ALL cheap models scored 0%
-      if (cheapEvalCount >= availableCheap.length && bestAccuracy === 0) {
+      if ((!onlyPriority || onlyPriority === 2) && cheapEvalCount >= availableCheap.length && bestAccuracy === 0) {
         for (const model of availableExpensive) {
           if (queued >= maxToQueue) break;
           const key = jobKey(gen.id, model.provider, model.model);
@@ -147,6 +190,7 @@ export async function POST(req: NextRequest) {
             priority: 2,
           });
           existingSet.add(key);
+          tagBreakdown[primaryTag] = (tagBreakdown[primaryTag] || 0) + 1;
           queued++;
         }
       }
@@ -171,12 +215,14 @@ export async function POST(req: NextRequest) {
       message: `Smart enqueue complete`,
       queued,
       skippedExisting,
-      totalGenerations: generations.length,
+      totalGenerationsConsidered: generations.length,
+      tagBreakdown,
       availableProviders: {
         cheap: availableCheap.map(m => `${m.provider}/${m.model}`),
         expensive: availableExpensive.map(m => `${m.provider}/${m.model}`),
       },
       strategy: {
+        order: 'ARC-AGI 2024 → ARC-AGI 2025 → ConceptARC → training → evaluation → Community → rest',
         priority1: 'Cheap models for generations with missing evaluations',
         priority2: 'Expensive models for generations where all cheap models scored 0%',
       },

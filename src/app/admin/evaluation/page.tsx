@@ -26,6 +26,15 @@ export default function EvaluationAdminPage() {
   const [batchSize, setBatchSize] = useState(10);
   const [maxToQueue, setMaxToQueue] = useState(200);
   const [autoProcess, setAutoProcess] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>(['ARC-AGI 2024', 'ARC-AGI 2025']);
+
+  const ALL_TAGS = ['ARC-AGI 2024', 'ARC-AGI 2025', 'ConceptARC', 'training', 'evaluation', 'Community', 'Mini-ARC', 'Synthetic Riddles'];
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
 
   // Load admin key from localStorage
   useEffect(() => {
@@ -220,8 +229,32 @@ export default function EvaluationAdminPage() {
               <Zap size={16} className="text-yellow-500" /> Smart Enqueue
             </h2>
             <p className="text-xs text-gray-500 mb-3">
-              Analyzes existing coverage. Queues cheap models first, expensive models only where cheap ones failed.
+              Prioritizes ARC-AGI 2024/2025 first. Cheap models first pass, expensive only where cheap failed.
             </p>
+            <div className="mb-3">
+              <label className="text-xs text-gray-500 block mb-1.5">Target datasets:</label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_TAGS.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                      selectedTags.includes(tag)
+                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 border-blue-300'
+                        : 'bg-gray-50 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium text-gray-400 hover:text-gray-600 underline"
+                >
+                  {selectedTags.length === 0 ? 'All selected' : 'Select all'}
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2 mb-3">
               <label className="text-xs text-gray-500">Max to queue:</label>
               <input
@@ -232,12 +265,15 @@ export default function EvaluationAdminPage() {
               />
             </div>
             <button
-              onClick={() => callApi('smart-enqueue', { maxToQueue })}
+              onClick={() => callApi('smart-enqueue', {
+                maxToQueue,
+                tags: selectedTags.length > 0 ? selectedTags : undefined,
+              })}
               disabled={loading !== null}
               className="w-full bg-yellow-500 text-white rounded py-2 text-sm font-medium hover:bg-yellow-600 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading === 'smart-enqueue' ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-              Smart Enqueue
+              Smart Enqueue{selectedTags.length > 0 ? ` (${selectedTags.join(', ')})` : ' (All)'}
             </button>
           </div>
 
