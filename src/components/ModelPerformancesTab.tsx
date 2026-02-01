@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { Loader2, Play, Trophy, Clock, Zap, ChevronRight, Brain } from 'lucide-react';
 import ArcGrid from './ArcGrid';
@@ -24,6 +24,39 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
   });
   const [isCreating, setIsCreating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const predContainerRef = useRef<HTMLDivElement>(null);
+  const [predContainerWidth, setPredContainerWidth] = useState(0);
+
+  useEffect(() => {
+    if (!predContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPredContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(predContainerRef.current);
+    return () => observer.disconnect();
+  }, [selectedRun]);
+
+  // Compute uniform cell size for prediction grids (3 grids side by side)
+  const predCellSize = useMemo(() => {
+    if (!predContainerWidth || !selectedRun?.predictions?.length) return 32;
+    // 3 columns with gap-4 (16px each gap = 32px) + p-4 padding (32px) + p-6 outer (48px) + borders (16px)
+    const overhead = 128;
+    const availableWidth = predContainerWidth - overhead;
+
+    let maxCols = 1;
+    for (const pred of selectedRun.predictions) {
+      const inputCols = pred.pair?.input?.[0]?.length || 1;
+      const predictedCols = pred.predicted?.[0]?.length || 1;
+      const expectedCols = pred.expected?.[0]?.length || 1;
+      const totalCols = inputCols + predictedCols + expectedCols;
+      if (totalCols > maxCols) maxCols = totalCols;
+    }
+
+    const computed = Math.floor(availableWidth / maxCols);
+    return Math.max(4, Math.min(48, computed));
+  }, [predContainerWidth, selectedRun]);
 
   useEffect(() => {
     fetchRuns();
@@ -149,7 +182,7 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
           )}
 
           <h3 className="text-xl font-bold mb-4">Predictions</h3>
-          <div className="space-y-6">
+          <div ref={predContainerRef} className="space-y-6">
             {selectedRun.predictions?.map((pred: any, idx: number) => (
               <div key={pred.id} className={`border-2 rounded-lg p-4 ${
                 pred.isCorrect 
@@ -170,15 +203,15 @@ export default function ModelPerformancesTab({ generationId }: ModelPerformances
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <div className="text-xs font-semibold text-gray-500 mb-2 uppercase">Input</div>
-                    <ArcGrid grid={pred.pair.input} editable={false} />
+                    <ArcGrid grid={pred.pair.input} editable={false} cellSize={predCellSize} />
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-gray-500 mb-2 uppercase">Predicted Output</div>
-                    <ArcGrid grid={pred.predicted} editable={false} />
+                    <ArcGrid grid={pred.predicted} editable={false} cellSize={predCellSize} />
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-gray-500 mb-2 uppercase">Expected Output</div>
-                    <ArcGrid grid={pred.expected} editable={false} />
+                    <ArcGrid grid={pred.expected} editable={false} cellSize={predCellSize} />
                   </div>
                 </div>
               </div>

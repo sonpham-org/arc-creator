@@ -12,16 +12,18 @@ interface PuzzlePairProps {
   onResizeInput?: (rows: number, cols: number) => void;
   onResizeOutput?: (rows: number, cols: number) => void;
   editable?: boolean;
+  cellSize?: 'xs' | 'sm' | 'md' | 'lg' | number;
 }
 
-export default function PuzzlePair({ 
-  input, 
-  output, 
-  onEditInput, 
-  onEditOutput, 
+export default function PuzzlePair({
+  input,
+  output,
+  onEditInput,
+  onEditOutput,
   onResizeInput,
   onResizeOutput,
-  editable 
+  editable,
+  cellSize = 'md',
 }: PuzzlePairProps) {
   // Safety check
   if (!input || !Array.isArray(input) || input.length === 0) {
@@ -53,7 +55,7 @@ export default function PuzzlePair({
             </div>
           )}
         </div>
-        <ArcGrid grid={input} onCellClick={onEditInput} editable={editable} />
+        <ArcGrid grid={input} onCellClick={onEditInput} editable={editable} cellSize={cellSize} />
       </div>
 
       <div className="flex flex-col items-center">
@@ -84,7 +86,7 @@ export default function PuzzlePair({
           )}
         </div>
         {output && Array.isArray(output) && output.length > 0 ? (
-          <ArcGrid grid={output} onCellClick={onEditOutput} editable={editable} />
+          <ArcGrid grid={output} onCellClick={onEditOutput} editable={editable} cellSize={cellSize} />
         ) : (
           <div className="flex items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
             <span className="text-xs text-gray-400">Hidden Test Output</span>

@@ -26,7 +26,7 @@ interface ArcGridProps {
   onCellClick?: (r: number, c: number) => void;
   editable?: boolean;
   selectedColor?: number;
-  cellSize?: 'xs' | 'sm' | 'md' | 'lg';
+  cellSize?: 'xs' | 'sm' | 'md' | 'lg' | number;
 }
 
 export default function ArcGrid({ grid, onCellClick, editable, selectedColor, cellSize = 'md' }: ArcGridProps) {
@@ -39,7 +39,7 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
     lg: 48,
   };
 
-  const cellPx = sizeMap[cellSize];
+  const cellPx = typeof cellSize === 'number' ? cellSize : sizeMap[cellSize];
   const rows = grid.length;
   const cols = grid[0].length;
 

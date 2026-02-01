@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { ARC_COLORS } from '@/components/ArcGrid';
 import PuzzlePair from '@/components/PuzzlePair';
@@ -29,12 +29,50 @@ export default function PuzzleReviewTab({
   onResizeInput,
   onResizeOutput,
 }: PuzzleReviewTabProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Separate training and test pairs with null safety
   const trainingPairs = (editedPairs || []).filter(p => p && !p.isTestCase);
   const testPairs = (editedPairs || []).filter(p => p && p.isTestCase);
 
+  // Compute a uniform cell size that fits all pairs within the container
+  const cellSize = useMemo(() => {
+    if (!containerWidth || editedPairs.length === 0) return 32;
+
+    // PuzzlePair overhead: p-4 (32px padding) + gap-4 (16px) + arrow (24px) + gap-4 (16px) + outer borders (8px)
+    const pairOverhead = 96;
+    // Additional overhead from the wrapping containers (border-2 + p-3 for test cases)
+    const wrapperOverhead = 24;
+    const availableWidth = containerWidth - pairOverhead - wrapperOverhead;
+
+    let maxTotalCols = 1;
+    for (const pair of editedPairs) {
+      if (!pair) continue;
+      const inputCols = pair.input?.[0]?.length || 1;
+      const outputCols = pair.output?.[0]?.length || 1;
+      const totalCols = inputCols + (pair.output ? outputCols : 0);
+      if (totalCols > maxTotalCols) maxTotalCols = totalCols;
+    }
+
+    const computed = Math.floor(availableWidth / maxTotalCols);
+    // Clamp between 4px and 48px
+    return Math.max(4, Math.min(48, computed));
+  }, [containerWidth, editedPairs]);
+
   return (
-    <div className="space-y-6">
+    <div ref={containerRef} className="space-y-6">
       {/* Training Examples */}
       {trainingPairs.length > 0 && (
         <div>
@@ -50,6 +88,7 @@ export default function PuzzleReviewTab({
                   onResizeInput={(rows, cols) => onResizeInput(editedPairs.indexOf(pair), rows, cols)}
                   onResizeOutput={(rows, cols) => onResizeOutput(editedPairs.indexOf(pair), rows, cols)}
                   editable={editMode}
+                  cellSize={cellSize}
                 />
               </div>
             ))}
@@ -72,6 +111,7 @@ export default function PuzzleReviewTab({
                   onResizeInput={(rows, cols) => onResizeInput(editedPairs.indexOf(pair), rows, cols)}
                   onResizeOutput={(rows, cols) => onResizeOutput(editedPairs.indexOf(pair), rows, cols)}
                   editable={editMode}
+                  cellSize={cellSize}
                 />
               </div>
             ))}
