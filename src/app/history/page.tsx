@@ -2,16 +2,19 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, Clock, Hash, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
+import { Loader2, ArrowRight, Clock, Hash, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import ArcGrid from '@/components/ArcGrid';
 
 const PUZZLES_PER_PAGE = 30;
+
+// Default tags to show on first load
+const DEFAULT_TAGS = ['ARC-AGI 2024', 'ARC-AGI 2025'];
 
 export default function HistoryPage() {
   const [puzzles, setPuzzles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(DEFAULT_TAGS);
 
   useEffect(() => {
     fetch('/api/puzzles')
@@ -22,17 +25,19 @@ export default function HistoryPage() {
       });
   }, []);
 
-  // Collect all unique tags sorted alphabetically
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
+  // Collect all unique tags with counts, sorted by count descending
+  const tagsWithCounts = useMemo(() => {
+    const tagMap = new Map<string, number>();
     for (const p of puzzles) {
       if (p.tags) {
         for (const tag of p.tags) {
-          tagSet.add(tag);
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
         }
       }
     }
-    return Array.from(tagSet).sort();
+    return Array.from(tagMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => ({ tag, count }));
   }, [puzzles]);
 
   // Filter puzzles by selected tags
@@ -50,6 +55,11 @@ export default function HistoryPage() {
     );
   };
 
+  const selectAll = () => {
+    setCurrentPage(1);
+    setSelectedTags(tagsWithCounts.map(t => t.tag));
+  };
+
   const clearTags = () => {
     setCurrentPage(1);
     setSelectedTags([]);
@@ -64,29 +74,22 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Puzzle Library</h1>
-        <p className="text-gray-500">Browse and manage your ARC puzzle collection.</p>
-      </div>
-
-      {/* Tag Filter */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-500">Filter by tag</span>
-          {selectedTags.length > 0 && (
-            <button
-              onClick={clearTags}
-              className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
-            >
-              <X size={12} /> Clear
-            </button>
-          )}
+      {/* Header with tag filters on the right */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="shrink-0">
+          <h1 className="text-3xl font-bold">Puzzle Library</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {filteredPuzzles.length} puzzles
+            {selectedTags.length > 0 && selectedTags.length < tagsWithCounts.length && (
+              <span className="text-gray-400"> (filtered from {puzzles.length})</span>
+            )}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {allTags.map(tag => {
+
+        {/* Tag Filter - top right */}
+        <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+          {tagsWithCounts.map(({ tag, count }) => {
             const isActive = selectedTags.includes(tag);
-            const count = puzzles.filter(p => p.tags?.includes(tag)).length;
             return (
               <button
                 key={tag}
@@ -94,13 +97,26 @@ export default function HistoryPage() {
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   isActive
                     ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                    : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-blue-300'
                 }`}
               >
-                {tag} <span className="opacity-60">({count})</span>
+                {tag} <span className="opacity-60">{count}</span>
               </button>
             );
           })}
+          <span className="text-gray-300 dark:text-gray-600 mx-0.5">|</span>
+          <button
+            onClick={selectAll}
+            className="text-xs px-2 py-1 text-blue-500 hover:text-blue-700 transition-colors"
+          >
+            All
+          </button>
+          <button
+            onClick={clearTags}
+            className="text-xs px-2 py-1 text-gray-400 hover:text-red-500 transition-colors"
+          >
+            None
+          </button>
         </div>
       </div>
 
