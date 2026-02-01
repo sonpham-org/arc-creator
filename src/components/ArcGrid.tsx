@@ -44,16 +44,11 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
   const cols = grid[0].length;
 
   return (
-    <div 
-      className="inline-block border-2 border-gray-900" 
-      style={{ 
-        width: `${cols * cellPx}px`,
-        height: `${rows * cellPx}px`,
-      }}
+    <div
+      className="inline-block border-2 border-gray-500"
     >
-      <div 
-        className="relative w-full h-full"
-        style={{ 
+      <div
+        style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${cols}, ${cellPx}px)`,
           gridTemplateRows: `repeat(${rows}, ${cellPx}px)`,
@@ -64,7 +59,7 @@ export default function ArcGrid({ grid, onCellClick, editable, selectedColor, ce
             <div
               key={`${r}-${c}`}
               className={cn(
-                "transition-colors border border-gray-900",
+                "transition-colors border border-gray-500",
                 editable && "cursor-pointer hover:opacity-80",
                 ARC_COLORS[cell] || 'bg-white'
               )}

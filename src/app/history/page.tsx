@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Loader2, ArrowRight, Clock, Hash, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import ArcGrid from '@/components/ArcGrid';
 
-const PUZZLES_PER_PAGE = 12;
+const PUZZLES_PER_PAGE = 30;
 
 export default function HistoryPage() {
   const [puzzles, setPuzzles] = useState<any[]>([]);
