@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Clock, ExternalLink, BrainCircuit } from 'lucide-react';
 import Link from 'next/link';
 
 export default function JobsPage() {
@@ -127,15 +127,18 @@ export default function JobsPage() {
         {/* Filters */}
         <div className="flex gap-2">
           {['all', 'pending', 'running', 'completed', 'failed', 'cancelled'].map((f) => (
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              filter === f
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === f
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
       </div>
 
       {/* Jobs List */}
