@@ -35,19 +35,6 @@ export default function PuzzleReviewTab({
 
   return (
     <div className="space-y-6">
-      {/* Agent Reasoning - Only show if exists and not in edit mode */}
-      {!editMode && currentGen?.reasoning && (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <BrainCircuit className="text-blue-600" size={22} />
-            <h2 className="text-xl font-semibold">Agent Reasoning</h2>
-          </div>
-          <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap italic leading-relaxed">
-            {currentGen.reasoning}
-          </div>
-        </div>
-      )}
-
       {/* Training Examples */}
       {trainingPairs.length > 0 && (
         <div>

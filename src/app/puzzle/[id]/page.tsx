@@ -25,7 +25,7 @@ export default function PuzzleDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedColor, setSelectedColor] = useState(1);
   const [selectedModel, setSelectedModel] = useState(initialModel);
-  const [activeTab, setActiveTab] = useState<'review' | 'performance'>('review');
+  const [activeTab, setActiveTab] = useState<'review' | 'performance' | 'reasoning'>('review');
   const [editMode, setEditMode] = useState(false);
   const [ratings, setRatings] = useState<any>(null);
   const [userRating, setUserRating] = useState({ quality: 0, difficulty: 0, interestingness: 0 });
@@ -194,6 +194,19 @@ export default function PuzzleDetailPage() {
           <Eye size={18} />
           Puzzle Review
         </button>
+        {currentGen?.reasoning && !puzzle.tags?.includes('arc-2024') && !puzzle.tags?.includes('arc-2025') && (
+          <button
+            onClick={() => setActiveTab('reasoning')}
+            className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'reasoning'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <BrainCircuit size={18} />
+            Agent Reasoning
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('performance')}
           className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
@@ -228,6 +241,16 @@ export default function PuzzleDetailPage() {
                 <Loader2 className="animate-spin text-blue-600" size={32} />
               </div>
             )
+          ) : activeTab === 'reasoning' ? (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <BrainCircuit className="text-blue-600" size={22} />
+                <h2 className="text-xl font-semibold">Agent Reasoning</h2>
+              </div>
+              <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap italic leading-relaxed">
+                {currentGen?.reasoning || 'No reasoning available for this puzzle.'}
+              </div>
+            </div>
           ) : (
             <ModelPerformancesTab generationId={currentGen?.id} />
           )}
@@ -319,15 +342,29 @@ export default function PuzzleDetailPage() {
               <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <label className="text-xs font-semibold text-gray-500 mb-2 block uppercase">Color Palette</label>
                 <div className="flex gap-2 flex-wrap">
-                  {Object.entries(ARC_COLORS).map(([num, color]) => (
-                    <button
-                      key={num}
-                      onClick={() => setSelectedColor(Number(num))}
-                      className={`w-10 h-10 rounded border-2 transition-all ${selectedColor === Number(num) ? 'border-blue-600 scale-110 shadow-lg' : 'border-gray-300'}`}
-                      style={{ backgroundColor: color }}
-                      title={`Color ${num}`}
-                    />
-                  ))}
+                  {Object.entries(ARC_COLORS).map(([num, colorClass]) => {
+                    const colorMap: Record<number, string> = {
+                      0: '#000000',
+                      1: '#0074D9',
+                      2: '#FF4136',
+                      3: '#2ECC40',
+                      4: '#FFDC00',
+                      5: '#AAAAAA',
+                      6: '#F012BE',
+                      7: '#FF851B',
+                      8: '#7FDBFF',
+                      9: '#870C25',
+                    };
+                    return (
+                      <button
+                        key={num}
+                        onClick={() => setSelectedColor(Number(num))}
+                        className={`w-10 h-10 rounded border-2 transition-all ${selectedColor === Number(num) ? 'border-blue-600 scale-110 shadow-lg' : 'border-gray-300'}`}
+                        style={{ backgroundColor: colorMap[Number(num)] }}
+                        title={`Color ${num}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 
