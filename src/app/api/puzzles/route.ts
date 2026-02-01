@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
     let currentThought = '';
     let currentContent = '';
     let lastUpdate = Date.now();
+    let isCancelled = false;
+
+    // Periodically check if the job has been cancelled
+    const cancelCheckInterval = jobId ? setInterval(async () => {
+      const job = await prisma.job.findUnique({ where: { id: jobId } }).catch(() => null);
+      if (job?.status === 'cancelled') {
+        isCancelled = true;
+        if (cancelCheckInterval) clearInterval(cancelCheckInterval);
+      }
+    }, 1000) : null;
 
     const { content: llmContent, tokensUsed } = await callLLM(
       provider, 
@@ -72,12 +82,10 @@ export async function POST(req: NextRequest) {
           }).catch(() => {}); // soft fail on background update
         }
       },
-      async () => {
-        if (!jobId) return false;
-        const job = await prisma.job.findUnique({ where: { id: jobId } }).catch(() => null);
-        return job?.status === 'cancelled';
-      }
+      () => isCancelled
     );
+
+    if (cancelCheckInterval) clearInterval(cancelCheckInterval);
     
     const endTime = Date.now();
     const timeTakenMs = endTime - startTime;
